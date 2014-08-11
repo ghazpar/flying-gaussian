@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python3
 """Random points generator where the points are sampled from
 labeled distributions that can move, rotate and scale along time.
 Each sample correspond to one unit of time.
@@ -22,9 +22,9 @@ else:
     color_conv = ColorConverter()
 
 from collections import namedtuple, deque
-from itertools import imap, repeat
+from itertools import repeat
 from math import sqrt, cos, sin, pi, atan2, exp
-from operator import attrgetter, itemgetter, div
+from operator import attrgetter, itemgetter, truediv
 
 from numpy import linalg
 from numpy.random import multivariate_normal
@@ -124,8 +124,8 @@ class Distribution(object):
                 self.delta_r = self.cur_trans.rotate / nbr_steps * pi/180.0
                 self.rotation = numpy.identity(self.ndim)
                 idx = 0
-                for i in xrange(self.ndim-1):
-                    for j in xrange(i+1, self.ndim):
+                for i in range(self.ndim-1):
+                    for j in range(i+1, self.ndim):
                         matrix = numpy.identity(self.ndim)
                         angle = self.delta_r[idx]
                         sign = 1.0
@@ -173,7 +173,7 @@ def read_file(filename):
     try:
         fp = open(filename)
     except IOError:
-        print 'Cannot open file : ', filename
+        print('Cannot open file : ', filename)
         exit()
         
     jclass_list = json.load(fp)
@@ -202,7 +202,7 @@ def read_file(filename):
                 translate = jtrans.get('translate', [0.0] * distr.ndim)
                 translation = numpy.array(translate)
                 scale = jtrans.get('scale', 1.0)
-                nbr_angles = distr.ndim*(distr.ndim-1)/2
+                nbr_angles = distr.ndim*(distr.ndim-1)//2
                 rotate = jtrans.get('rotate', [0.0] * nbr_angles)
                 rotation = numpy.array(rotate)
                 weight = jtrans.get('weight', distr.weight)
@@ -214,7 +214,7 @@ def read_file(filename):
                                                   weight))
             distribs.append(distr)
 
-        cstart_time = min(imap(attrgetter('start_time'), distribs))
+        cstart_time = min(map(attrgetter('start_time'), distribs))
         label = jclass['class']
         cl_weight = jclass['weight']
         for jtrans in reversed(jclass.get('transforms', [])):
@@ -233,13 +233,13 @@ def read_file(filename):
 
         weight_sumc += class_list[-1].weight
         if weight_sumd != 1.0:
-            print 'Warning: weights sum for distribution of class %s is ' \
+            print('Warning: weights sum for distribution of class %s is ' \
                   'not equal to one, weights ' \
-                  'will be normalized.' % class_list[-1].label
+                  'will be normalized.' % class_list[-1].label)
 
     if weight_sumc != 1.0:
-        print 'Warning: weights sum for the set of classes ' \
-              'is not equal to one, weights will be normalized.'
+        print('Warning: weights sum for the set of classes ' \
+              'is not equal to one, weights will be normalized.')
 
     return class_list
 
@@ -284,8 +284,8 @@ def plot_class(time, ref_labels, class_list, points, labels, fig, axis):
     axis.set_ylim(min_y,max_y)
 
     # Draw the last sampled points
-    x = map(itemgetter(0), points)
-    y = map(itemgetter(1), points)
+    x = list(map(itemgetter(0), points))
+    y = list(map(itemgetter(1), points))
     alph_inc = 1.0 / len(labels)
     colors = [color_conv.to_rgba(COLORS[ref_labels.index(label)], 
                 (i+1)*alph_inc) for i, label in enumerate(labels)]
@@ -328,9 +328,9 @@ def main(filename, samples, oracle, plot, path, seed=None):
     save = path is not None
 
     if (plot or save) and not MATPLOTLIB:
-        print 'Warning: the --plot or --save-fig options were activated,'\
+        print('Warning: the --plot or --save-fig options were activated,'\
               'but matplotlib is unavailable. ' \
-              'Processing will continue without plotting.'
+              'Processing will continue without plotting.')
     
     # Read file and initialize classes
     class_list = read_file(filename)
@@ -344,23 +344,23 @@ def main(filename, samples, oracle, plot, path, seed=None):
             plt.show()
         points = deque(maxlen=LAST_N_PTS)
         labels = deque(maxlen=LAST_N_PTS)
-        ref_labels = map(attrgetter('label'), class_list)
+        ref_labels = list(map(attrgetter('label'), class_list))
 
 
     # Print CSV header
     if oracle:
-        print "%s, %s, %s" % ('label',
+        print("%s, %s, %s" % ('label',
                               ", ".join('x%i'% i for i in
-                                        xrange(len(class_list[0].distributions[0].centroid))), 
+                                        range(len(class_list[0].distributions[0].centroid))), 
                               ", ".join('%s' % class_.label for class_ in
-                                        class_list))
+                                        class_list)))
     else:
-        print "%s, %s" % ('label',
+        print("%s, %s" % ('label',
                           ", ".join('x%i'% i for i in
-                                    xrange(len(class_list[0].distributions[0].centroid)))) 
+                                    range(len(class_list[0].distributions[0].centroid))))) 
         
 
-    for i in xrange(samples):
+    for i in range(samples):
         cclass = weight_choice([class_ for class_ in class_list 
                                 if class_.start_time <= i])
         cdistrib = weight_choice([distrib for distrib in cclass.distributions
@@ -389,16 +389,16 @@ def main(filename, samples, oracle, plot, path, seed=None):
                 probs.append(0.0)
         
         # Normalize probabilities
-        probs = map(div, probs, repeat(sum(probs), len(probs)))
+        probs = list(map(truediv, probs, repeat(sum(probs), len(probs))))
 
         # Print the sampled point in CSV format
         if oracle:
-            print "%s, %s, %s" % (str(cclass.label), 
+            print("%s, %s, %s" % (str(cclass.label), 
                                   ", ".join("%s" % v for v in spoint), 
-                                  ", ".join("%.3f" % prob for prob in probs))
+                                  ", ".join("%.3f" % prob for prob in probs)))
         else:
-            print "%s, %s" % (str(cclass.label), 
-                              ", ".join("%s" % v for v in spoint)) 
+            print("%s, %s" % (str(cclass.label), 
+                              ", ".join("%s" % v for v in spoint))) 
 
         # Plot the resulting distribution if required
         if (plot or save) and MATPLOTLIB:
