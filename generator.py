@@ -8,7 +8,6 @@ import argparse
 import json
 import random
 
-
 import numpy
 
 try:
@@ -37,13 +36,12 @@ COLORS = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
 gAbort = False
 
 class Distribution(object):
-    """ This class incapsulates a non-stationary multivariate normal distribution. 
+    """This class incapsulates a non-stationary multivariate normal distribution. 
     The object contains a list of phases that are applied sequentially, and that 
-    can modify the scale, the position and the angle of the distribution.
-    """
+    can modify the scale, the position and the angle of the distribution."""
     def __init__(self, iArgs, iN):
-        """ Parse file content *iArgs*.
-        """
+        """ Parse file content *iArgs*; argument *iN* is the distribution number
+        for error messages."""
 
         self.label = iArgs.get("label")
         if self.label == None:
@@ -164,9 +162,8 @@ class Distribution(object):
         return rep
         
     def getDistParams(self, iTime):
-        """ Compute the distribution parameters at time *iTime*;
-        Return tuple(center, covariance).
-        """
+        """Compute the distribution parameters at time *iTime*;
+        Return tuple(center, covariance)."""
         if self.getWeight(iTime) <= 0:
             return None, None
 
@@ -188,6 +185,7 @@ class Distribution(object):
 
 
     def getWeight(self, iTime):
+        """Return distribution weight at time *iTime*."""
         i = list(filter(lambda x: self.indices[x]<iTime, self.indices))[-1]
         if i == len(self.indices)-1:
             return self.weights[i]
@@ -196,7 +194,7 @@ class Distribution(object):
             return self.weight[i] + x*(self.weights[i+1]-self.weight[i])
 
     def pdf(self, iPoint, iTime):
-        """ Compute the probability to sample a given point at a given time."""
+        """Return the probability of sampling point *iPoint* at time *iTime*."""
         if self.getWeight(iTime) <= 0: 
             return 0.
 
@@ -208,7 +206,7 @@ class Distribution(object):
         return lNum/lDenom
        
     def sample(self, iTime, iN=1):
-        """ Sample the distribution at the specified time."""
+        """Return *iN* distribution samples at time *iTime*."""
         if self.getWeight(iTime): 
             return None
 
@@ -216,6 +214,7 @@ class Distribution(object):
         return multivariate_normal(lCenter, lCovar, iN)
 
 def createRotationMatrix(iDim, iAngles):
+    """Return rotation matrix for angle *iAngles*."""
     if len(iAngles) != iDim*(iDim-1)/2:
         raise runtime_error("invalid number of angles")
     lMatrix = numpy.identity(iDim)
@@ -235,11 +234,8 @@ def createRotationMatrix(iDim, iAngles):
             k += 1
     return lMatrix
 
-def read_file(iFilename):
-    """Read a JSON file containing distributions and transformations, 
-    and initialize the corresponding object. The function 
-    return a list of initialized distributions.
-    """
+def readDistributions(iFilename):
+    """Read JSON file *iFileName* and return its list of distributions."""
     try:
         file = open(iFilename)
     except IOError:
@@ -278,8 +274,7 @@ def drawCovEllipse(iCenter, iCovar, iAx, iPerc=0.95, iColor='b'):
     return ax.add_patch(ellipse)
 
 def plotDistributions(iTime, iRefLabels, iDistList, iPoints, iLabels, iFig, iAxis):
-    """Plot the distributions ellipses and the last sampled points.
-    """
+    """Plot the distributions ellipses and the last sampled points."""
     iAxis.clear()
     
     min_x = min_y = float('inf')
@@ -322,8 +317,7 @@ def plotDistributions(iTime, iRefLabels, iDistList, iPoints, iLabels, iFig, iAxi
 
 def weight_choice(seq):
     """Randomly choose an element from the sequence *seq* with a 
-    bias function of the weight of each element.
-    """
+    bias function of the weight of each element."""
     sorted_seq = sorted(seq, key=attrgetter("weight"), reverse=True)
     sum_weights = sum(elem.weight for elem in seq)
     u = random.random() * sum_weights
@@ -333,7 +327,7 @@ def weight_choice(seq):
         if sum_ >= u:
             return elem
 
-def main(filename, samples, oracle, plot, path, seed=None):
+def main(filename, samples, plot, path, seed=None):
     random.seed(seed)
     numpy.random.seed(seed)
     
@@ -344,8 +338,7 @@ def main(filename, samples, oracle, plot, path, seed=None):
               'but matplotlib is unavailable. ' \
               'Processing will continue without plotting.')
     
-    # Read file and initialize distributions
-    lDistributions = read_file(filename)
+    lDistributions = readDistributions(filename)
     
     # Initialize figure and axis before plotting
     if (plot or save) and MATPLOTLIB:
@@ -358,26 +351,18 @@ def main(filename, samples, oracle, plot, path, seed=None):
         labels = deque(maxlen=LAST_N_PTS)
         ref_labels = list(map(attrgetter('label'), lDistributions))
 
-
     # Print CSV header
-    if oracle:
-        print("%s, %s, %s" % ('label',
-                              ", ".join('x%i'% i for i in
-                                        range(len(lDistributions[0].distributions[0].centroid))), 
-                              ", ".join('%s' % class_.label for class_ in
-                                        class_list)))
-    else:
-        print("%s, %s" % ('label',
-                          ", ".join('x%i'% i for i in
-                                    range(len(lDistributions[0].distributions[0].centroid))))) 
-        
+    lDims = lDistributions[0].dims
+    print("label", 
+          ", ".join("x{}".format(i) for i in range(lDims)), ",",
+          ", ".join("P({})".format(d.label) for d in lDistributions))        
 
     for i in range(samples):
         cdistrib = weight_choice([distrib for distrib in cclass.distributions
                                   if distrib.start_time <= i])
         spoint = cdistrib.sample()[0]
 
-        # Compute the probability for each class
+        # Compute the probability for each distribution
         # The probability of having sampled a point from a class C_i knowing x is given by :
         # P(C_i | x) = \frac{P(C_i) p(x | C_i)}{\sum_j{P(C_j) p(x | C_j) }}
         # p(x | C_i) = \sum_k{ P(G_k) p(x | G_k)}
@@ -402,13 +387,9 @@ def main(filename, samples, oracle, plot, path, seed=None):
         probs = list(map(truediv, probs, repeat(sum(probs), len(probs))))
 
         # Print the sampled point in CSV format
-        if oracle:
-            print("%s, %s, %s" % (str(cclass.label), 
-                                  ", ".join("%s" % v for v in spoint), 
-                                  ", ".join("%.3f" % prob for prob in probs)))
-        else:
-            print("%s, %s" % (str(cclass.label), 
-                              ", ".join("%s" % v for v in spoint))) 
+        print("%s, %s, %s" % (str(cclass.label), 
+                              ", ".join("%s" % v for v in spoint), 
+                              ", ".join("%.3f" % prob for prob in probs)))
 
         # Plot the resulting distribution if required
         if (plot or save) and MATPLOTLIB:
@@ -435,10 +416,6 @@ if __name__ == "__main__":
     parser.add_argument('filename', help='json file containing the classes')
     parser.add_argument('samples', type=int, help='number of samples')
     
-    parser.add_argument('--oracle', dest='oracle', required=False, 
-                        action='store_true', default=False,
-                        help='append to the point its probability of ' \
-                             'belonging to each class')
     parser.add_argument('--plot', dest='plot', required=False, 
                         action='store_true', default=False,
                         help='tell if the results should be plotted')
@@ -450,4 +427,4 @@ if __name__ == "__main__":
                         help='random number generator seed')
     
     args = parser.parse_args()
-    main(args.filename, args.samples, args.oracle, args.plot, args.save_path, args.seed)
+    main(args.filename, args.samples, args.plot, args.save_path, args.seed)
