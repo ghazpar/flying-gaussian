@@ -21,7 +21,7 @@ else:
     from matplotlib.patches import Ellipse    
     color_conv = ColorConverter()
 
-from collections import namedtuple, deque
+from collections import deque
 from itertools import repeat
 from math import sqrt, cos, sin, pi, atan2, exp
 from operator import attrgetter, itemgetter, truediv
@@ -34,217 +34,230 @@ from scipy.stats import chi2
 LAST_N_PTS = 25
 COLORS = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
 
-class Class(object):
-    """Object representing a set of distribution associated to the same
-    label.
-    """
-    def __init__(self, label, weight, distribs, start_time, 
-                 transforms=None):
-        self.label = label
-        self.weight = weight
-        self.distributions = distribs
-        self.start_time = start_time
-        self.update_count = 0
-        if transforms is not None:
-            self.transforms = transforms
-        else:
-            self.transforms = []
-        self.cur_trans = None
-
-    def update(self, time):
-        """Upates class' distribution then apply current transform.
-        """
-        # Update distributions
-        for distrib in self.distributions:
-            distrib.update(time)
-        
-        if self.cur_trans is None:
-            if len(self.transforms) > 0:
-                # Compute the nbr of steps
-                self.cur_trans = self.transforms.pop()
-                nbr_steps = self.cur_trans.duration / self.cur_trans.steps
-                
-                # Compute the weight delta
-                self.delta_w = (self.cur_trans.weight - self.weight) / float(nbr_steps)
-            else:
-                return
-        
-        self.update_count += 1
-        # Update the distribution with the current appliable transformation
-        if self.update_count % self.cur_trans.steps == 0:
-            self.weight += self.delta_w
-        
-        # Duration of the transformation is over
-        if self.update_count == self.cur_trans.duration:
-            self.cur_trans = None
-            self.update_count = 0
+gAbort = False
 
 class Distribution(object):
-    """Object representing a multivariate normal distribution that 
-    changes dynamically. The object contains a list of transformations
-    that are applied sequentially, and that modify the scale, the position
-    and the angle of the distribution.
+    """ This class incapsulates a non-stationary multivariate normal distribution. 
+    The object contains a list of phases that are applied sequentially, and that 
+    can modify the scale, the position and the angle of the distribution.
     """
-    def __init__(self):
-        self.update_count = 0
-        self.transforms = []
-        self.cur_trans = None
-        self.scale = 1.0
-
-    def pdf(self, point):
-        """Compute the probability to sample a *point*."""
-        prob = 1.0/sqrt(2*pi*linalg.det(self.scale*self.matrix))
-        prob *= exp(-0.5 * numpy.dot((point - self.centroid).T,
-                                     numpy.dot(linalg.inv(self.scale*self.matrix),
-                                               point - self.centroid)))
-        return prob
-
-       
-    def sample(self, size=1):
-        """Sample the actual distribution *size* times."""
-        return multivariate_normal(self.centroid, self.scale*self.matrix, 
-                                   size)
-        
-    def update(self, time):
-        """Update the distribution position, scale and rotation given the 
-        current time.
+    def __init__(self, iArgs, iN):
+        """ Parse file content *iArgs*.
         """
-        if time < self.start_time:
-            return
-        # If there is no current transformation
-        # pop one from the stack
-        if self.cur_trans is None:
-            if len(self.transforms) > 0:
-                # Compute the translation delta
-                self.cur_trans = self.transforms.pop()
-                nbr_steps = self.cur_trans.duration / self.cur_trans.steps
-                self.delta_t = self.cur_trans.translate / nbr_steps
-                
-                # Compute rotation delta and rotation matrix
-                self.delta_r = self.cur_trans.rotate / nbr_steps * pi/180.0
-                self.rotation = numpy.identity(self.ndim)
-                idx = 0
-                for i in range(self.ndim-1):
-                    for j in range(i+1, self.ndim):
-                        matrix = numpy.identity(self.ndim)
-                        angle = self.delta_r[idx]
-                        sign = 1.0
-                        if i+j % 2 == 0:
-                            sign = -1.0
-                        matrix[i][i] = cos(angle)
-                        matrix[j][j] = cos(angle)
-                        matrix[i][j] = -sign*sin(angle)
-                        matrix[j][i] = sign*sin(angle)
-                        self.rotation = numpy.dot(self.rotation, matrix)
-                        idx += 1
-                self.rotation_inv = linalg.inv(self.rotation)
 
-                # Compute the scaling delta
-                sigma = self.scale * self.cur_trans.scale - self.scale
-                self.delta_s = sigma / nbr_steps
+        self.label = iArgs.get("label")
+        if self.label == None:
+            print("Error, distribution {} is missing a `label' attribute".format(iN))
+            gAbort = True
 
-                # Compute the weight delta
-                self.delta_w = (self.cur_trans.weight - self.weight) / nbr_steps
+        lWeight = iArgs.get("weight")
+        if lWeight == None:
+            print("Error, distribution {} is missing a `weight' attribute".format(iN))
+            gAbort = True
+        if lWeight != None and lWeight < 0:
+            print("Error, distribution {} has a negative `weight' attribute".format(iN))
+            gAbort = True
+        self.weights = [lWeight]
+
+        lCenter = iArgs.get("center")
+        if lCenter == None:
+            print("Error, distribution {} is missing a `center' attribute".format(iN))
+            gAbort = True
+        self.centers = [numpy.array(lCenter)]
+        self.dims = len(lCenter)
+
+        lCovar = iArgs.get("covar")
+        if lCovar == None:
+            print("Error, distribution {} is missing a `covar' attribute".format(iN))
+            gAbort = True
+        else:
+            lCovar = numpy.array(lCovar)
+            if lCovar.shape != (self.dims, self.dims):
+                print("Error, distribution {}".format(iN) +
+                      " has an invalid covariance matrix dimensions")
+                gAbort = True
+        self.covars = [lCovar]
+        self.rotations = [None]
+        self.scales = [None]
+
+        lStart = iArgs.get("start", 0)
+        if lStart < 0:
+            print("Error, distribution {}".format(iN) +
+                  " has a negative `start' attribute")
+            gAbort = True
+        self.indices = [lStart]
+
+        for lPhase in iArgs["phases"]:
+
+            lDuration = lPhase.get("duration")
+            if lDuration == None:
+                print("Error, a phase in distribution {}".format(iN) +
+                      " is missing a `duration' attribute")
+                gAbort = True
+            elif lDuration < 0:
+                print("Error, a phase in distribution {}".format(iN) +
+                      " has a negative `duration' attribute")
+                gAbort = True
+            self.indices.append(self.indices[-1]+lDuration)
+
+            lWeight = lPhase.get("weight")
+            if lWeight == None:
+                self.weights.append(self.weights[-1])
+            elif lWeight < 0:
+                print("Error, a phase in distribution {}".format(iN) +
+                      " has a negative `weight' attribute")
+                gAbort = True
             else:
-                return
+                self.weights.append(lWeight)
 
-        self.update_count += 1
-        # Update the distribution with the current appliable transformation
-        if self.update_count % self.cur_trans.steps == 0:
-            self.centroid += self.delta_t
-            self.scale += self.delta_s
-            self.matrix = numpy.dot(self.rotation_inv, 
-                                    numpy.dot(self.matrix, self.rotation))
-            self.weight += self.delta_w
+            lMoveto = lPhase.get("moveto")
+            if lMoveto == None:
+                lMoveto = lPhase.get("rmoveto")
+                if lMoveto == None:
+                    self.centers.append(self.centers[-1])
+                else:
+                    self.centers.append(self.centers[-1]+lMoveto)
+            else:
+                if lPhase.get("rmoveto"):
+                    print("Error, a phase in distribution {}".format(i) +
+                          "contains both a `moveto' and `rmoveto' attribute")
+                    gAbort = True
+                self.centers.append(lMoveto)
+           
+            lScale = lPhase.get("scale", None)
+            if lScale != None and lScale < 0:
+                print("Error, a phase in distribution {}".format(iN) +
+                      " has a negative `scale' attribute")
+                gAbort = True
+            self.scales.append(lScale)
 
-        # Duration of the transformation is over
-        if self.update_count == self.cur_trans.duration:
-            self.cur_trans = None
-            self.update_count = 0
+            lRotation = lPhase.get("rotate", None)
+            if lRotation != None and len(lRotation) != self.dims*(self.dims-1)//2:
+                print("Error, a phase in distribution {}".format(iN) +
+                      " has an invalid number of rotation angles")
+            self.rotations.append(lRotation)
 
-Transform = namedtuple('Transform', ['duration', 'steps', 'translate', 
-                                     'scale', 'rotate', 'weight'])
+            lCovar = numpy.copy(self.covars[-1])
+            if lScale != None:
+                lCovar *= lScale
+            if lRotation != None:
+                lMatrix = createRotationMatrix(self.dims, lRotation)
+                lCovar = numpy.dot(lMatrix.T, numpy.dot(lCovar, lMatrix))
+            self.covars.append(lCovar)
 
-def read_file(filename):
-    """Read a JSON file containing the classes, the distributions and the
-    transformations, and initialize the corresponding object. The function 
-    return a list of initialized classes.
+            lValidPhaseArgs = ("duration", "rotate", "scale", "weight", "moveto", "rmoveto")
+            for lArg in lPhase:
+                if not lArg in lValidPhaseArgs:
+                    print("Error, unknown `{}' phase attribute in distribution {}".format(lArg, iN))
+                    gAbort = True
+
+        lValidDistribArgs = ("label", "weight", "center", "covar", "start", "phases")
+        for lArg in iArgs:
+            if not lArg in lValidDistribArgs:
+                print("Error, unknown `{}' attribute in distribution {}".format(lArg, iN))
+                gAbort = True
+
+    def __repr__(self):
+        rep = "{}, [".format(self.label)
+        rep += "indices={}, weights={}, centers={}, covars={}, scales={}, rotations={}]".format(
+               self.indices, self.weights, self.centers, self.covars, self.scales, self.rotations)
+        return rep
+        
+    def getDistParams(self, iTime):
+        """ Compute the distribution parameters at time *iTime*;
+        Return tuple(center, covariance).
+        """
+        if self.getWeight(iTime) <= 0:
+            return None, None
+
+        i = list(filter(lambda x: self.indices[x]<iTime, self.indices))[-1]
+        x = (iTime-self.indices[i])/(self.indices[i+1]-self.indices[i])
+
+        lCenter = self.centers[i] + x*(self.centers[i+1]-self.centers[i])
+
+        lCovar = numpy.copy(self.covars[i])
+        if self.scales[i] != None:
+            lScale = 1.0 + x*(self.scales[i]-1.0)
+            lMatrix *= lScale
+        if self.rotations[i] != None:
+            lRotation = numpy.copy(self.rotations[i])
+            lRotation *= x
+            lMatrix = createRotationMatrix(self.dims, lRotation)
+            lCovar = numpy.dot(lMatrix.T, numpy.dot(lCovar, lMatrix))
+        return lCenter, lCovar
+
+
+    def getWeight(self, iTime):
+        i = list(filter(lambda x: self.indices[x]<iTime, self.indices))[-1]
+        if i == len(self.indices)-1:
+            return self.weights[i]
+        else:
+            x = (iTime-self.indices[i])/(self.indices[i+1]-self.indices[i])
+            return self.weight[i] + x*(self.weights[i+1]-self.weight[i])
+
+    def pdf(self, iPoint, iTime):
+        """ Compute the probability to sample a given point at a given time."""
+        if self.getWeight(iTime) <= 0: 
+            return 0.
+
+        lCenter, lCovar = self.getDistParams(iTime)
+        lX = (iPoint - lCenter)
+        lNum = exp(-0.5 * numpy.dot(lX.T, numpy.dot(linalg.inv(lCovar), lX)))
+        lDenom = sqrt(2*pi*linalg.det(lCovar))
+
+        return lNum/lDenom
+       
+    def sample(self, iTime, iN=1):
+        """ Sample the distribution at the specified time."""
+        if self.getWeight(iTime): 
+            return None
+
+        lCenter, lCovar = self.getDistParams(iTime)
+        return multivariate_normal(lCenter, lCovar, iN)
+
+def createRotationMatrix(iDim, iAngles):
+    if len(iAngles) != iDim*(iDim-1)/2:
+        raise runtime_error("invalid number of angles")
+    lMatrix = numpy.identity(iDim)
+    k = 0
+    for i in range(iDim-1):
+        for j in range(i+1, iDim):
+            lTmp = numpy.identity(iDim)
+            lAngle = iAngles[k]
+            lSign = 1.0
+            if i+j % 2 == 0:
+                lSign = -1.0
+            lTmp[i][i] = cos(lAngle)
+            lTmp[j][j] = cos(lAngle)
+            lTmp[i][j] = -sign*sin(lAngle)
+            lTmp[j][i] = sign*sin(lAngle)
+            lMatrix = numpy.dot(lMatrix, lTmp)
+            k += 1
+    return lMatrix
+
+def read_file(iFilename):
+    """Read a JSON file containing distributions and transformations, 
+    and initialize the corresponding object. The function 
+    return a list of initialized distributions.
     """
     try:
-        fp = open(filename)
+        file = open(iFilename)
     except IOError:
-        print('Cannot open file : ', filename)
+        print('Cannot open file : ', iFilename)
         exit()
         
-    jclass_list = json.load(fp)
-    class_list = []
+    lDistributions = []
 
-    weight_sumc = 0.0
-    for jclass in jclass_list:
-        weight_sumd = 0.0
-        distribs = []
-        transforms = []
-        for jdistrib in jclass['distributions']:
-            distr = Distribution()
-            distr.start_time = jdistrib['start_time']
-            distr.weight = jdistrib['weight']
-            
-            weight_sumd += distr.weight
-            
-            distr.centroid = jdistrib['centroid']
-            distr.ndim = len(distr.centroid)
-            distr.matrix = numpy.array(jdistrib['cov_matrix'])
-            distr.transforms = []
-            
-            for jtrans in reversed(jdistrib.get('transforms', [])):
-                duration = jtrans.get('duration', 1)
-                steps = jtrans.get('steps', 1)
-                translate = jtrans.get('translate', [0.0] * distr.ndim)
-                translation = numpy.array(translate)
-                scale = jtrans.get('scale', 1.0)
-                nbr_angles = distr.ndim*(distr.ndim-1)//2
-                rotate = jtrans.get('rotate', [0.0] * nbr_angles)
-                rotation = numpy.array(rotate)
-                weight = jtrans.get('weight', distr.weight)
-                distr.transforms.append(Transform(duration,
-                                                  steps,
-                                                  translation,
-                                                  scale,
-                                                  rotation,
-                                                  weight))
-            distribs.append(distr)
+    n = 1
+    for lDist in json.load(file):
+        lDistributions.append(Distribution(lDist, n))
+        n += 1
 
-        cstart_time = min(map(attrgetter('start_time'), distribs))
-        label = jclass['class']
-        cl_weight = jclass['weight']
-        for jtrans in reversed(jclass.get('transforms', [])):
-            duration = jtrans.get('duration', 1)
-            steps = jtrans.get('steps', 1)
-            weight = jtrans.get('weight', cl_weight)
-            transforms.append(Transform(duration,
-                                        steps,
-                                        None,
-                                        None,
-                                        None,
-                                        weight))
+    if gAbort: exit()
 
-        class_list.append(Class(label, cl_weight, distribs, 
-                                cstart_time, transforms))
+    return lDistributions
 
-        weight_sumc += class_list[-1].weight
-        if weight_sumd != 1.0:
-            print('Warning: weights sum for distribution of class %s is ' \
-                  'not equal to one, weights ' \
-                  'will be normalized.' % class_list[-1].label)
-
-    if weight_sumc != 1.0:
-        print('Warning: weights sum for the set of classes ' \
-              'is not equal to one, weights will be normalized.')
-
-    return class_list
-
-def draw_cov_ellipse(centroid, cov_matrix, ax, 
-                     perc=0.95, color='b'):
+def drawCovEllipse(iCenter, iCovar, iAx, iPerc=0.95, iColor='b'):
     """Draw the ellipse associated with the multivariate normal distribution
     defined by *centroid* and *cov_matrix*. The *perc* argument specified 
     the percentage of the distribution mass that will be drawn.
@@ -252,40 +265,39 @@ def draw_cov_ellipse(centroid, cov_matrix, ax,
     This function is based on the example posted on Matplotlib mailing-list:
     http://www.mail-archive.com/matplotlib-users@lists.sourceforge.net/msg14153.html
     """
-    U, s, _ = linalg.svd(cov_matrix)
+    U, s, _ = linalg.svd(iCovar)
     orient = atan2(U[1, 0], U[0, 0]) * 180.0/pi
 
-    c = chi2.isf(1 - perc, len(centroid))
+    c = chi2.isf(1 - iPerc, len(iCenter))
     width = 2.0 * sqrt(s[0] * c)
     height = 2.0 * sqrt(s[1] * c)
 
-    ellipse = Ellipse(xy=centroid, width=width, height=height, 
+    ellipse = Ellipse(xy=iCenter, width=width, height=height, 
                       angle=orient, fc=color, alpha=0.1)
     
     return ax.add_patch(ellipse)
 
-def plot_class(time, ref_labels, class_list, points, labels, fig, axis):
+def plotDistributions(iTime, iRefLabels, iDistList, iPoints, iLabels, iFig, iAxis):
     """Plot the distributions ellipses and the last sampled points.
     """
-    axis.clear()
+    iAxis.clear()
     
     min_x = min_y = float('inf')
     max_x = max_y = float('-inf')
     
-    for class_ in class_list:
-        for distrib in class_.distributions:
-            if distrib.start_time <= time:
-                min_x = min(min_x, distrib.centroid[0] - 4*distrib.scale*sqrt(distrib.matrix[0][0]))
-                max_x = max(max_x, distrib.centroid[0] + 4*distrib.scale*sqrt(distrib.matrix[0][0]))
-                min_y = min(min_y, distrib.centroid[1] - 4*distrib.scale*sqrt(distrib.matrix[1][1]))
-                max_y = max(max_y, distrib.centroid[1] + 4*distrib.scale*sqrt(distrib.matrix[1][1]))
+    for lDistrib in iDistList:
+        if lDistrib.start <= time:
+            min_x = min(min_x, lDistrib.center[0] - 4*lDistrib.scale*sqrt(lDistrib.covar[0][0]))
+            max_x = max(max_x, lDistrib.center[0] + 4*lDistrib.scale*sqrt(lDistrib.covar[0][0]))
+            min_y = min(min_y, lDistrib.center[1] - 4*lDistrib.scale*sqrt(lDistrib.covar[1][1]))
+            max_y = max(max_y, lDistrib.center[1] + 4*lDistrib.scale*sqrt(lDistrib.covar[1][1]))
     
-    axis.set_xlim(min_x,max_x)
-    axis.set_ylim(min_y,max_y)
+    iAxis.set_xlim(min_x,max_x)
+    iAxis.set_ylim(min_y,max_y)
 
     # Draw the last sampled points
-    x = list(map(itemgetter(0), points))
-    y = list(map(itemgetter(1), points))
+    x = list(map(itemgetter(0), iPoints))
+    y = list(map(itemgetter(1), iPoints))
     alph_inc = 1.0 / len(labels)
     colors = [color_conv.to_rgba(COLORS[ref_labels.index(label)], 
                 (i+1)*alph_inc) for i, label in enumerate(labels)]
@@ -298,8 +310,8 @@ def plot_class(time, ref_labels, class_list, points, labels, fig, axis):
         present = False
         for distrib in class_.distributions:
             if time >= distrib.start_time:
-                ref_ell = draw_cov_ellipse(distrib.centroid, distrib.matrix * distrib.scale,
-                                           perc=0.95, ax=axis, color=COLORS[i])
+                ref_ell = drawCovEllipse(distrib.centroid, distrib.matrix * distrib.scale,
+                                           iPerc=0.95, iAx=axis, iColor=COLORS[i])
                 if not present:
                     ellipses.append(ref_ell)
                     labels.append(class_.label)
@@ -332,8 +344,8 @@ def main(filename, samples, oracle, plot, path, seed=None):
               'but matplotlib is unavailable. ' \
               'Processing will continue without plotting.')
     
-    # Read file and initialize classes
-    class_list = read_file(filename)
+    # Read file and initialize distributions
+    lDistributions = read_file(filename)
     
     # Initialize figure and axis before plotting
     if (plot or save) and MATPLOTLIB:
@@ -344,25 +356,23 @@ def main(filename, samples, oracle, plot, path, seed=None):
             plt.show()
         points = deque(maxlen=LAST_N_PTS)
         labels = deque(maxlen=LAST_N_PTS)
-        ref_labels = list(map(attrgetter('label'), class_list))
+        ref_labels = list(map(attrgetter('label'), lDistributions))
 
 
     # Print CSV header
     if oracle:
         print("%s, %s, %s" % ('label',
                               ", ".join('x%i'% i for i in
-                                        range(len(class_list[0].distributions[0].centroid))), 
+                                        range(len(lDistributions[0].distributions[0].centroid))), 
                               ", ".join('%s' % class_.label for class_ in
                                         class_list)))
     else:
         print("%s, %s" % ('label',
                           ", ".join('x%i'% i for i in
-                                    range(len(class_list[0].distributions[0].centroid))))) 
+                                    range(len(lDistributions[0].distributions[0].centroid))))) 
         
 
     for i in range(samples):
-        cclass = weight_choice([class_ for class_ in class_list 
-                                if class_.start_time <= i])
         cdistrib = weight_choice([distrib for distrib in cclass.distributions
                                   if distrib.start_time <= i])
         spoint = cdistrib.sample()[0]
