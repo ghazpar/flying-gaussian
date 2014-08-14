@@ -73,6 +73,15 @@ def drawCovEllipse(iCenter, iCovar, iAx, iPerc=0.95, iColor='b'):
 def plotDistributions(iClassLabels, iDistribs, iSamples, iLabels, iAx):
     """Plot the distributions ellipses and the last sampled points."""
 
+    lLegend = {}
+    # Draw the distribution covariance ellipse
+    for lDist in iDistribs:
+        lLabel = lDist.getClassLabel()
+        i = iClassLabels.index(lLabel)
+        ref_ell = drawCovEllipse(lDist.getCurrentCenter(), lDist.getCurrentCovar(),
+                                 iPerc=0.95, iAx=iAx, iColor=COLORS[i])
+        lLegend[lLabel] = ref_ell
+
     # Draw the last sampled points
     x = list(map(itemgetter(0), iSamples))
     y = list(map(itemgetter(1), iSamples))
@@ -81,27 +90,7 @@ def plotDistributions(iClassLabels, iDistribs, iSamples, iLabels, iAx):
                 (i+1)*alph_inc) for i, label in enumerate(iLabels)]
     iAx.scatter(x, y, c=colors, edgecolors='none')
 
-    ellipses = []
-    labels = []
-    # Draw the distribution covariance ellipse
-    for lDist in iDistribs:
-        i = iClassLabels.index(lDist.getClassLabel())
-        ref_ell = drawCovEllipse(lDist.getCurrentCenter(), lDist.getCurrentCovar(),
-                                 iPerc=0.95, iAx=iAx, iColor=COLORS[i])
-        ellipses.append(ref_ell)
-        labels.append(lDist.getClassLabel())
-
-    iAx.legend(ellipses, labels)
-
-def selectDistribution(iDistList, iTime):
-    """Randomly select a distribution from sequence *iDistList*. 
-    The selection process is biaised by the weight of each distribution
-    at time *iTime*. Returns the selected distribution."""
-
-
-    lWeights = [x.getDistribParams(iTime) for x in iDistributions]
-    lWeights = numpy.array(lWeights) / sum(lWeights)
-    return numpy.random.choice(iDistributions, p=lWeights)
+    iAx.legend(lLegend.values(), lLegend.keys())
 
 def main(iFilename, iNbSamples, iPlot, iPath, iSeed=None):
     random.seed(iSeed)
@@ -155,7 +144,7 @@ def main(iFilename, iNbSamples, iPlot, iPath, iSeed=None):
         lProbs = numpy.array(lWeights) / sum(lWeights)
         lSelDist = numpy.random.choice(lDistribs, p=lProbs)
 
-        # draw sample from selected distribution
+        # draw a random sample from selected distribution
         lSample = multivariate_normal.rvs(lSelDist.getCurrentCenter(), 
                                           lSelDist.getCurrentCovar())
 
@@ -177,7 +166,7 @@ def main(iFilename, iNbSamples, iPlot, iPath, iSeed=None):
               ", ".join("{}".format(x) for x in lSample), ",",
               ", ".join("{}".format(lSums[x]/lTotalSum) for x in lClassLabels))
 
-        # if required, plot distributions
+        # plot distributions
         if (iPlot or lSave) and MATPLOTLIB:
             lSamples.append(lSample)
             lLabels.append(lSelDist.getClassLabel())
@@ -220,4 +209,5 @@ if __name__ == "__main__":
                         help='random number generator seed')
     
     args = parser.parse_args()
+
     main(args.filename, args.samples, args.plot, args.save_path, args.seed)
