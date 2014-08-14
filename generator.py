@@ -4,11 +4,9 @@ labeled distributions that can move, rotate and scale along time.
 Each sample correspond to one unit of time.
 """
 
-import argparse
-import json
-import random
+import argparse, json, random, numpy
 
-import numpy
+from Distribution import Distribution
 
 try:
     import matplotlib.pyplot as plt
@@ -26,213 +24,13 @@ from math import sqrt, cos, sin, pi, atan2, exp
 from operator import attrgetter, itemgetter, truediv
 
 from numpy import linalg
-from numpy.random import multivariate_normal
-from scipy.stats import chi2
+from scipy.stats import chi2, multivariate_normal
 
 # Global constant
 LAST_N_PTS = 25
 COLORS = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
 
 gAbort = False
-
-class Distribution(object):
-    """This class incapsulates a non-stationary multivariate normal distribution. 
-    The object contains a list of phases that are applied sequentially, and that 
-    can modify the scale, the position and the angle of the distribution."""
-    def __init__(self, iArgs, iN):
-        """ Parse file content *iArgs*; argument *iN* is the distribution number
-        for error messages."""
-
-        self.label = iArgs.get("label")
-        if self.label == None:
-            print("Error, distribution {} is missing a `label' attribute".format(iN))
-            gAbort = True
-
-        lWeight = iArgs.get("weight")
-        if lWeight == None:
-            print("Error, distribution {} is missing a `weight' attribute".format(iN))
-            gAbort = True
-        if lWeight != None and lWeight < 0:
-            print("Error, distribution {} has a negative `weight' attribute".format(iN))
-            gAbort = True
-        self.weights = [lWeight]
-
-        lCenter = iArgs.get("center")
-        if lCenter == None:
-            print("Error, distribution {} is missing a `center' attribute".format(iN))
-            gAbort = True
-        self.centers = [numpy.array(lCenter)]
-        self.dims = len(lCenter)
-
-        lCovar = iArgs.get("covar")
-        if lCovar == None:
-            print("Error, distribution {} is missing a `covar' attribute".format(iN))
-            gAbort = True
-        else:
-            lCovar = numpy.array(lCovar)
-            if lCovar.shape != (self.dims, self.dims):
-                print("Error, distribution {}".format(iN) +
-                      " has an invalid covariance matrix dimensions")
-                gAbort = True
-        self.covars = [lCovar]
-        self.rotations = [None]
-        self.scales = [None]
-
-        lStart = iArgs.get("start", 0)
-        if lStart < 0:
-            print("Error, distribution {}".format(iN) +
-                  " has a negative `start' attribute")
-            gAbort = True
-        self.indices = [lStart]
-
-        for lPhase in iArgs["phases"]:
-
-            lDuration = lPhase.get("duration")
-            if lDuration == None:
-                print("Error, a phase in distribution {}".format(iN) +
-                      " is missing a `duration' attribute")
-                gAbort = True
-            elif lDuration < 0:
-                print("Error, a phase in distribution {}".format(iN) +
-                      " has a negative `duration' attribute")
-                gAbort = True
-            self.indices.append(self.indices[-1]+lDuration)
-
-            lWeight = lPhase.get("weight")
-            if lWeight == None:
-                self.weights.append(self.weights[-1])
-            elif lWeight < 0:
-                print("Error, a phase in distribution {}".format(iN) +
-                      " has a negative `weight' attribute")
-                gAbort = True
-            else:
-                self.weights.append(lWeight)
-
-            lMoveto = lPhase.get("moveto")
-            if lMoveto == None:
-                lMoveto = lPhase.get("rmoveto")
-                if lMoveto == None:
-                    self.centers.append(self.centers[-1])
-                else:
-                    self.centers.append(self.centers[-1]+lMoveto)
-            else:
-                if lPhase.get("rmoveto"):
-                    print("Error, a phase in distribution {}".format(i) +
-                          "contains both a `moveto' and `rmoveto' attribute")
-                    gAbort = True
-                self.centers.append(lMoveto)
-           
-            lScale = lPhase.get("scale", None)
-            if lScale != None and lScale < 0:
-                print("Error, a phase in distribution {}".format(iN) +
-                      " has a negative `scale' attribute")
-                gAbort = True
-            self.scales.append(lScale)
-
-            lRotation = lPhase.get("rotate", None)
-            if lRotation != None and len(lRotation) != self.dims*(self.dims-1)//2:
-                print("Error, a phase in distribution {}".format(iN) +
-                      " has an invalid number of rotation angles")
-            self.rotations.append(lRotation)
-
-            lCovar = numpy.copy(self.covars[-1])
-            if lScale != None:
-                lCovar *= lScale
-            if lRotation != None:
-                lMatrix = createRotationMatrix(self.dims, lRotation)
-                lCovar = numpy.dot(lMatrix.T, numpy.dot(lCovar, lMatrix))
-            self.covars.append(lCovar)
-
-            lValidPhaseArgs = ("duration", "rotate", "scale", "weight", "moveto", "rmoveto")
-            for lArg in lPhase:
-                if not lArg in lValidPhaseArgs:
-                    print("Error, unknown `{}' phase attribute in distribution {}".format(lArg, iN))
-                    gAbort = True
-
-        lValidDistribArgs = ("label", "weight", "center", "covar", "start", "phases")
-        for lArg in iArgs:
-            if not lArg in lValidDistribArgs:
-                print("Error, unknown `{}' attribute in distribution {}".format(lArg, iN))
-                gAbort = True
-
-    def __repr__(self):
-        rep = "{}, [".format(self.label)
-        rep += "indices={}, weights={}, centers={}, covars={}, scales={}, rotations={}]".format(
-               self.indices, self.weights, self.centers, self.covars, self.scales, self.rotations)
-        return rep
-        
-    def getDistParams(self, iTime):
-        """Compute the distribution parameters at time *iTime*;
-        Return tuple(center, covariance)."""
-        if self.getWeight(iTime) <= 0:
-            return None, None
-
-        i = list(filter(lambda x: self.indices[x]<iTime, self.indices))[-1]
-        x = (iTime-self.indices[i])/(self.indices[i+1]-self.indices[i])
-
-        lCenter = self.centers[i] + x*(self.centers[i+1]-self.centers[i])
-
-        lCovar = numpy.copy(self.covars[i])
-        if self.scales[i] != None:
-            lScale = 1.0 + x*(self.scales[i]-1.0)
-            lMatrix *= lScale
-        if self.rotations[i] != None:
-            lRotation = numpy.copy(self.rotations[i])
-            lRotation *= x
-            lMatrix = createRotationMatrix(self.dims, lRotation)
-            lCovar = numpy.dot(lMatrix.T, numpy.dot(lCovar, lMatrix))
-        return lCenter, lCovar
-
-
-    def getWeight(self, iTime):
-        """Return distribution weight at time *iTime*."""
-        i = list(filter(lambda x: self.indices[x]<iTime, self.indices))[-1]
-        if i == len(self.indices)-1:
-            return self.weights[i]
-        else:
-            x = (iTime-self.indices[i])/(self.indices[i+1]-self.indices[i])
-            return self.weight[i] + x*(self.weights[i+1]-self.weight[i])
-
-    def pdf(self, iPoint, iTime):
-        """Return the probability of sampling point *iPoint* at time *iTime*."""
-        if self.getWeight(iTime) <= 0: 
-            return 0.
-
-        lCenter, lCovar = self.getDistParams(iTime)
-        lX = (iPoint - lCenter)
-        lNum = exp(-0.5 * numpy.dot(lX.T, numpy.dot(linalg.inv(lCovar), lX)))
-        lDenom = sqrt(2*pi*linalg.det(lCovar))
-
-        return lNum/lDenom
-       
-    def sample(self, iTime, iN=1):
-        """Return *iN* distribution samples at time *iTime*."""
-        if self.getWeight(iTime): 
-            return None
-
-        lCenter, lCovar = self.getDistParams(iTime)
-        return multivariate_normal(lCenter, lCovar, iN)
-
-def createRotationMatrix(iDim, iAngles):
-    """Return rotation matrix for angle *iAngles*."""
-    if len(iAngles) != iDim*(iDim-1)/2:
-        raise runtime_error("invalid number of angles")
-    lMatrix = numpy.identity(iDim)
-    k = 0
-    for i in range(iDim-1):
-        for j in range(i+1, iDim):
-            lTmp = numpy.identity(iDim)
-            lAngle = iAngles[k]
-            lSign = 1.0
-            if i+j % 2 == 0:
-                lSign = -1.0
-            lTmp[i][i] = cos(lAngle)
-            lTmp[j][j] = cos(lAngle)
-            lTmp[i][j] = -sign*sin(lAngle)
-            lTmp[j][i] = sign*sin(lAngle)
-            lMatrix = numpy.dot(lMatrix, lTmp)
-            k += 1
-    return lMatrix
 
 def readDistributions(iFilename):
     """Read JSON file *iFileName* and return its list of distributions."""
@@ -242,16 +40,15 @@ def readDistributions(iFilename):
         print('Cannot open file : ', iFilename)
         exit()
         
-    lDistributions = []
-
     n = 1
+    lDistList = []
     for lDist in json.load(file):
-        lDistributions.append(Distribution(lDist, n))
+        lDistList.append(Distribution(lDist, n))
         n += 1
 
     if gAbort: exit()
 
-    return lDistributions
+    return lDistList
 
 def drawCovEllipse(iCenter, iCovar, iAx, iPerc=0.95, iColor='b'):
     """Draw the ellipse associated with the multivariate normal distribution
@@ -315,33 +112,31 @@ def plotDistributions(iTime, iRefLabels, iDistList, iPoints, iLabels, iFig, iAxi
     axis.legend(ellipses, labels)
     fig.canvas.draw()
 
-def weight_choice(seq):
-    """Randomly choose an element from the sequence *seq* with a 
-    bias function of the weight of each element."""
-    sorted_seq = sorted(seq, key=attrgetter("weight"), reverse=True)
-    sum_weights = sum(elem.weight for elem in seq)
-    u = random.random() * sum_weights
-    sum_ = 0.0
-    for elem in sorted_seq:
-        sum_ += elem.weight
-        if sum_ >= u:
-            return elem
+def selectDistribution(iDistList, iTime):
+    """Randomly select a distribution from sequence *iDistList*. 
+    The selection process is biaised by the weight of each distribution
+    at time *iTime*. Returns the selected distribution."""
 
-def main(filename, samples, plot, path, seed=None):
-    random.seed(seed)
-    numpy.random.seed(seed)
+
+    lWeights = [x.getDistribParams(iTime) for x in iDistributions]
+    lWeights = numpy.array(lWeights) / sum(lWeights)
+    return numpy.random.choice(iDistributions, p=lWeights)
+
+def main(iFilename, iSamples, iPlot, iPath, iSeed=None):
+    random.seed(iSeed)
+    numpy.random.seed(iSeed)
     
-    save = path is not None
+    lSave = iSeed is not None
 
-    if (plot or save) and not MATPLOTLIB:
+    if (iPlot or lSave) and not MATPLOTLIB:
         print('Warning: the --plot or --save-fig options were activated,'\
               'but matplotlib is unavailable. ' \
               'Processing will continue without plotting.')
     
-    lDistributions = readDistributions(filename)
+    lDistribs = readDistributions(iFilename)
     
     # Initialize figure and axis before plotting
-    if (plot or save) and MATPLOTLIB:
+    if (iPlot or lSave) and MATPLOTLIB:
         fig = plt.figure(figsize=(10,10))
         ax1 = fig.add_subplot(111)
         if plot:
@@ -349,65 +144,67 @@ def main(filename, samples, plot, path, seed=None):
             plt.show()
         points = deque(maxlen=LAST_N_PTS)
         labels = deque(maxlen=LAST_N_PTS)
-        ref_labels = list(map(attrgetter('label'), lDistributions))
+        ref_labels = list(map(attrgetter('_label'), lDistList))
+
+    # enumerate class labels
+    lLabels = set(x.getClassLabel() for x in lDistribs)
 
     # Print CSV header
-    lDims = lDistributions[0].dims
-    print("label", 
-          ", ".join("x{}".format(i) for i in range(lDims)), ",",
-          ", ".join("P({})".format(d.label) for d in lDistributions))        
+    lDims = lDistribs[0].getDims()
+    print("label,", 
+          ", ".join("x{}".format(i+1) for i in range(lDims)), ",",
+          ", ".join("P({})".format(x) for x in lLabels))
 
-    for i in range(samples):
-        cdistrib = weight_choice([distrib for distrib in cclass.distributions
-                                  if distrib.start_time <= i])
-        spoint = cdistrib.sample()[0]
+    # generate samples
+    for i in range(iSamples):
 
-        # Compute the probability for each distribution
-        # The probability of having sampled a point from a class C_i knowing x is given by :
-        # P(C_i | x) = \frac{P(C_i) p(x | C_i)}{\sum_j{P(C_j) p(x | C_j) }}
-        # p(x | C_i) = \sum_k{ P(G_k) p(x | G_k)}
-        # Where G_k are the gaussian distribution of class C_i
-        probs = []
-        classes_weight_sum = sum(class_.weight for class_ in class_list 
-                                 if class_.start_time <= i)
-        for class_ in class_list:
-            if class_.start_time <= i:
-                prob_class = class_.weight / classes_weight_sum
-                prob_dist = 0.0
-                dists_weight_sum = sum(dist.weight 
-                                       for dist in class_.distributions
-                                       if dist.start_time <= i)
-                for dist in class_.distributions:
-                    prob_dist += dist.weight / dists_weight_sum * dist.pdf(spoint)
-                probs.append(prob_class * prob_dist)
-            else:
-                probs.append(0.0)
-        
-        # Normalize probabilities
-        probs = list(map(truediv, probs, repeat(sum(probs), len(probs))))
+        # determine current weight, center and covariance parameters
+        # for all distributions
+        for x in lDistribs:
+            x.setTime(i)
+
+        # randomly select a distribution according to weights
+        lWeights = [x.getCurrentWeight() for x in lDistribs]
+        lProbs = numpy.array(lWeights) / sum(lWeights)
+        lSelectDist = numpy.random.choice(lDistribs, p=lProbs)
+
+        # draw sample from selected distribution
+        lSample = multivariate_normal.rvs(lSelectDist.getCurrentCenter(), 
+                                          lSelectDist.getCurrentCovar())
+
+        # compute per class conditional probabilities
+        lSums = {}
+        # initialize sums
+        for x in lLabels:
+            lSums[x] = 0
+        # compute per class sums
+        for (lProb, lDist) in zip(lProbs, lDistribs):
+            lPDF = multivariate_normal.pdf(lSample, lDist.getCurrentCenter(), 
+                                                    lDist.getCurrentCovar())
+            lSums[lDist.getClassLabel()] += lProb * lPDF
+        # compute total sum
+        lTotalSum = sum(lSums.values())
 
         # Print the sampled point in CSV format
-        print("%s, %s, %s" % (str(cclass.label), 
-                              ", ".join("%s" % v for v in spoint), 
-                              ", ".join("%.3f" % prob for prob in probs)))
+        print("{},".format(lSelectDist.getClassLabel()),
+              ", ".join("{}".format(x) for x in lSample), ",",
+              ", ".join("{}".format(lSums[x]/lTotalSum) for x in lLabels))
+# print(lSelectDist.getCurrentCenter())
+# print(lSelectDist.getCurrentCovar())     
 
         # Plot the resulting distribution if required
-        if (plot or save) and MATPLOTLIB:
+        if (iPlot or lSave) and MATPLOTLIB:
             points.append(spoint)
             labels.append(class_.label)
             plot_class(i, ref_labels, class_list, points, labels, fig, ax1)
             if save:
                 fig.savefig(path+'/point_%i.png' % i)
-        
-        # Update the classes' distributions
-        for class_ in class_list:
-            class_.update(i)
 
-    if plot and MATPLOTLIB:
+    if iPlot and MATPLOTLIB:
         plt.ioff()
         plt.show()
 
-    return class_list
+    return lDistribs
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Read a file of classes'\
