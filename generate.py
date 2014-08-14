@@ -10,16 +10,16 @@ import argparse, json, numpy
 gAbort = False
 
 def readDistributions(iFilename):
-    """Read JSON file *iFileName* and return its list of distributions."""
+    """Read the JSON description file for the mixture of gaussians."""
     try:
-        file = open(iFilename)
+        lFile = open(iFilename)
     except IOError:
         print('Cannot open file : ', iFilename)
         exit()
         
     n = 1
     lDistribs = []
-    for lDist in json.load(file):
+    for lDist in json.load(lFile):
         lDistribs.append(Distribution(lDist, n))
         n += 1
 
@@ -28,6 +28,7 @@ def readDistributions(iFilename):
     return lDistribs
 
 def main(iArgs):
+    """Run main program."""
     
     # read distributions in json file
     lDistribs = readDistributions(iArgs.filename)
@@ -38,9 +39,8 @@ def main(iArgs):
 
     # Print CSV header
     lDims = lDistribs[0].getDims()
-    print("label,", 
-          ", ".join("x{}".format(i+1) for i in range(lDims)), ",",
-          ", ".join("P({})".format(x) for x in lClassLabels))
+    print("#class,", 
+          ", ".join("x{}".format(i+1) for i in range(lDims)))
 
     # generate the requested samples
     for i in range(iArgs.nbsamples):
@@ -62,14 +62,16 @@ def main(iArgs):
               ", ".join("{}".format(x) for x in lSample))
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Generate data from a "
-                                                 "non-stationary mixture "
-                                                 "of gaussians")
-    parser.add_argument('filename', help="json file containing the "
-                                          "distributions")
-    parser.add_argument('nbsamples', type=int, help="number of samples to "
-                                                    "generate")
-        
-    args = parser.parse_args()
 
-    main(args)
+    # parse command line
+    parser = argparse.ArgumentParser(description="Generate data from a "
+                                                 "mixture of non-stationary "
+                                                 "gaussian distributions")
+    parser.add_argument('filename', help="JSON file containing the mixture "
+                                          "of gaussians")
+    parser.add_argument('nbsamples', type=int,
+                        help="number of samples to generate")
+        
+    lArgs = parser.parse_args()
+
+    main(lArgs)
