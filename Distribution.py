@@ -108,10 +108,12 @@ class Distribution(object):
             # process phase rotation
             lRotation = lPhase.get("rotate", None)
             x = self.getDims()
-            if lRotation != None and len(lRotation) != x*(x-1)//2:
-                print("Error, a phase in distribution {}".format(iN) +
-                      " has an invalid number of rotation angles")
-            self._rotations.append(numpy.radians(lRotation))
+            if lRotation != None:
+                lRotation = numpy.radians(lRotation)
+                if len(lRotation) != x*(x-1)//2:
+                    print("Error, a phase in distribution {}".format(iN) +
+                          " has an invalid number of rotation angles")
+            self._rotations.append(lRotation)
 
             lCovar = numpy.copy(self._covars[-1])
             if lScale != None:
@@ -203,7 +205,9 @@ class Distribution(object):
             self._curPhase = -1
             self._curFraction = None
         else:
-            self._curPhase = i = list(filter(lambda x: x<=iTime, self._indices))[-1]
+            for (i, x) in enumerate(self._indices, -1):
+                if iTime < x: break
+            self._curPhase = i
             self._curFraction = (iTime-self._indices[i]) / (self._indices[i+1]-self._indices[i])
 
 def createRotationMatrix(iDim, iAngles):
