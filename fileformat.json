@@ -1,19 +1,18 @@
-[ 
-    { 
- 		"label": "string (mandatory)",
-       	"weight": "float (mandatory)",
-        "center": "list of float (mandatory)",
-        "covar": "list of lists of floats (mandatory)",
-        "start": "integer (default=0)",
-        "phases": 
-            [
-                {
-                    "duration" : "integer (mandatory)",
-                    "rotate": "list of floats (default=None)",
-                    "scale": "float (default=1)",
-                    "moveto|rmoveto": "tuple (default=None)",
-                    "weight": "float (default=None)"
-                }
-            ]
-    }
+[
+	{
+		"label":"string (mandatory)",
+		"weight":"float (mandatory)",
+		"center":"list of float (mandatory)",
+		"covar":"list of lists of floats (mandatory)",
+		"start":"integer (default=0)",
+		"phases":[
+			{
+				"duration":"integer (mandatory)",
+				"rotate":"list of floats (default=None)",
+				"scale":"float (default=1)",
+				"moveto|rmoveto":"tuple (default=None)",
+				"weight":"float (default=None)"
+			}
+		]
+	}
 ]
