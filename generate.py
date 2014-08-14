@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Generate data for a mixture of non-stationary gaussian distributions.
+"""
+Generate data for a mixture of non-stationary gaussian distributions.
 See file test.json for an example.
 """
 
