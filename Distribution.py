@@ -1,4 +1,4 @@
-from math import sqrt, cos, sin, radians, pi, atan2, exp
+from math import cos, sin, radians
 import numpy
 
 class Distribution(object):
