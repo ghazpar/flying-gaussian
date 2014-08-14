@@ -16,19 +16,6 @@
 	},
 	{
 		"label": "B",
-		"center": [-100,-50],
-		"covar": [[1,0],[0,1000]],
-		"weight": 0.5,
-		"phases": 
-			[
-				{
-					"duration" : 100,
-					"rotate": [-90]
-				}
-			]
-	},
-		{
-		"label": "C",
 		"center": [-100,0],
 		"covar": [[1,0],[0,1000]],
 		"weight": 0.5,
@@ -37,7 +24,21 @@
 				{
 					"duration" : 100,
 					"moveto": [-50,0],
+					"scale": 2,
 					"rotate": [-90]
+				}
+			]
+	},
+	{
+		"label": "C",
+		"center": [0,-50],
+		"covar": [[10,0],[0,500]],
+		"weight": 0.5,
+		"phases": 
+			[
+				{
+					"duration" : 100,
+					"scale": 3
 				}
 			]
 	}
