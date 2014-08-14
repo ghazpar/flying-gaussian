@@ -70,44 +70,28 @@ def drawCovEllipse(iCenter, iCovar, iAx, iPerc=0.95, iColor='b'):
     
     return iAx.add_patch(ellipse)
 
-def plotDistributions(iTime, iRefLabels, iDistribs, iSamples, iLabels, iFig, iAxis):
+def plotDistributions(iClassLabels, iDistribs, iSamples, iLabels, iAx):
     """Plot the distributions ellipses and the last sampled points."""
-    iAxis.clear()
-
-    # find min and max over all distributions
-    lMin = numpy.ones(iDistribs[0].getDims())*float('inf')
-    lMax = numpy.ones(iDistribs[0].getDims())*float('-inf')
-    for lDist in iDistribs:
-        for (lCenter, lCovar) in zip(lDist._centers, lDist._covars):
-            numpy.minimum(lMin, lCenter - 3*numpy.sqrt(numpy.diagonal(lCovar)), lMin)
-            numpy.maximum(lMax, lCenter + 3*numpy.sqrt(numpy.diagonal(lCovar)), lMax)
-
-    # set limits
-    iAxis.set_xlim(lMin[0],lMax[0])
-    iAxis.set_ylim(lMin[1],lMax[1])
-
-    iAxis.set_title("time={}".format(iTime))
 
     # Draw the last sampled points
     x = list(map(itemgetter(0), iSamples))
     y = list(map(itemgetter(1), iSamples))
     alph_inc = 1.0 / len(iLabels)
-    colors = [color_conv.to_rgba(COLORS[iRefLabels.index(label)], 
+    colors = [color_conv.to_rgba(COLORS[iClassLabels.index(label)], 
                 (i+1)*alph_inc) for i, label in enumerate(iLabels)]
-    iAxis.scatter(x, y, c=colors, edgecolors='none')
+    iAx.scatter(x, y, c=colors, edgecolors='none')
 
     ellipses = []
     labels = []
     # Draw the distribution covariance ellipse
     for lDist in iDistribs:
-        i = iRefLabels.index(lDist.getClassLabel())
+        i = iClassLabels.index(lDist.getClassLabel())
         ref_ell = drawCovEllipse(lDist.getCurrentCenter(), lDist.getCurrentCovar(),
-                                 iPerc=0.95, iAx=iAxis, iColor=COLORS[i])
+                                 iPerc=0.95, iAx=iAx, iColor=COLORS[i])
         ellipses.append(ref_ell)
         labels.append(lDist.getClassLabel())
 
-    iAxis.legend(ellipses, labels)
-    iFig.canvas.draw()
+    iAx.legend(ellipses, labels)
 
 def selectDistribution(iDistList, iTime):
     """Randomly select a distribution from sequence *iDistList*. 
@@ -119,7 +103,7 @@ def selectDistribution(iDistList, iTime):
     lWeights = numpy.array(lWeights) / sum(lWeights)
     return numpy.random.choice(iDistributions, p=lWeights)
 
-def main(iFilename, iSamples, iPlot, iPath, iSeed=None):
+def main(iFilename, iNbSamples, iPlot, iPath, iSeed=None):
     random.seed(iSeed)
     numpy.random.seed(iSeed)
     
@@ -134,50 +118,52 @@ def main(iFilename, iSamples, iPlot, iPath, iSeed=None):
     
     # Initialize figure and axis before plotting
     if (iPlot or lSave) and MATPLOTLIB:
-        fig = plt.figure(figsize=(10,10))
-        ax1 = fig.add_subplot(111)
+        lFig = plt.figure(figsize=(10,10))
+        lAx1 = lFig.add_subplot(111)
         if iPlot:
             plt.ion()
             plt.show()
-        points = deque(maxlen=LAST_N_PTS)
-        labels = deque(maxlen=LAST_N_PTS)
-        ref_labels = list(map(attrgetter('_label'), lDistribs))
+        lSamples = deque(maxlen=LAST_N_PTS)
+        lLabels = deque(maxlen=LAST_N_PTS)
+
+        # find min and max over all distributions
+        lMin = numpy.ones(lDistribs[0].getDims())*float('inf')
+        lMax = numpy.ones(lDistribs[0].getDims())*float('-inf')
+        for lDist in lDistribs:
+            for (lCenter, lCovar) in zip(lDist._centers, lDist._covars):
+                numpy.minimum(lMin, lCenter - 3*numpy.sqrt(numpy.diagonal(lCovar)), lMin)
+                numpy.maximum(lMax, lCenter + 3*numpy.sqrt(numpy.diagonal(lCovar)), lMax)
 
     # enumerate class labels
-    lLabels = set(x.getClassLabel() for x in lDistribs)
+    lClassLabels = set(x.getClassLabel() for x in lDistribs)
+    lClassLabels = sorted([x for x in lClassLabels])
 
     # Print CSV header
     lDims = lDistribs[0].getDims()
     print("label,", 
           ", ".join("x{}".format(i+1) for i in range(lDims)), ",",
-          ", ".join("P({})".format(x) for x in lLabels))
+          ", ".join("P({})".format(x) for x in lClassLabels))
 
-#    for lDist in lDistribs:
-#        print(lDist._centers)
-#        print(lDist._covars)
+    # generate the requested samples
+    for i in range(iNbSamples):
 
-    # generate samples
-    for i in range(iSamples):
-
-        # determine current weight, center and covariance parameters
-        # for all distributions
-        for x in lDistribs:
-            x.setTime(i)
+        # set time for all distributions
+        for _ in map(lambda x: x.setTime(i), lDistribs): pass
 
         # randomly select a distribution according to weights
-        lWeights = [x.getCurrentWeight() for x in lDistribs]
+        lWeights = [lDist.getCurrentWeight() for lDist in lDistribs]
         lProbs = numpy.array(lWeights) / sum(lWeights)
-        lSelectDist = numpy.random.choice(lDistribs, p=lProbs)
+        lSelDist = numpy.random.choice(lDistribs, p=lProbs)
 
         # draw sample from selected distribution
-        lSample = multivariate_normal.rvs(lSelectDist.getCurrentCenter(), 
-                                          lSelectDist.getCurrentCovar())
+        lSample = multivariate_normal.rvs(lSelDist.getCurrentCenter(), 
+                                          lSelDist.getCurrentCovar())
 
         # compute per class conditional probabilities
         lSums = {}
         # initialize sums
-        for x in lLabels:
-            lSums[x] = 0
+        for lLabel in lClassLabels:
+            lSums[lLabel] = 0
         # compute per class sums
         for (lProb, lDist) in zip(lProbs, lDistribs):
             lPDF = multivariate_normal.pdf(lSample, lDist.getCurrentCenter(), 
@@ -186,20 +172,29 @@ def main(iFilename, iSamples, iPlot, iPath, iSeed=None):
         # compute total sum
         lTotalSum = sum(lSums.values())
 
-        # Print the sampled point in CSV format
-        print("{},".format(lSelectDist.getClassLabel()),
+        # print data in CSV format
+        print("{},".format(lSelDist.getClassLabel()),
               ", ".join("{}".format(x) for x in lSample), ",",
-              ", ".join("{}".format(lSums[x]/lTotalSum) for x in lLabels))
-# print(lSelectDist.getCurrentCenter())
-# print(lSelectDist.getCurrentCovar())     
+              ", ".join("{}".format(lSums[x]/lTotalSum) for x in lClassLabels))
 
-        # Plot the resulting distribution if required
+        # if required, plot distributions
         if (iPlot or lSave) and MATPLOTLIB:
-            points.append(lSample)
-            labels.append(lSelectDist.getClassLabel())
-            plotDistributions(i, ref_labels, lDistribs, points, labels, fig, ax1)
+            lSamples.append(lSample)
+            lLabels.append(lSelDist.getClassLabel())
+
+            # clear plot
+            lAx1.clear()
+
+            # set plot limits and title
+            lAx1.set_xlim(lMin[0],lMax[0])
+            lAx1.set_ylim(lMin[1],lMax[1])
+            lAx1.set_title("time={}".format(i))
+
+            plotDistributions(lClassLabels, lDistribs, lSamples, lLabels, lAx1)
+            lFig.canvas.draw()
+
             if lSave:
-                fig.savefig(path+'/point_%i.png' % i)
+                fig.savefig(path+"/point_{}.png".format(i))
 
     if iPlot and MATPLOTLIB:
         plt.ioff()
