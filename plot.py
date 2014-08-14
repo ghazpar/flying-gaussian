@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Plot the data generates by the main generate script.
+"""
+Plot the data generates by the main generate script.
 """
 
 from Distribution import Distribution
@@ -10,7 +11,7 @@ from matplotlib.colors import ColorConverter
 from matplotlib.patches import Ellipse    
 
 from collections import deque
-from math import sqrt, cos, sin, pi, atan2
+from math import sqrt, pi, atan2
 
 from numpy import linalg
 from scipy.stats import chi2
