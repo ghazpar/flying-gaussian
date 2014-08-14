@@ -1,0 +1,44 @@
+[
+	{
+		"label": "A",
+		"center": [100,0],
+		"covar": [[1,0],[0,1000]],
+		"weight": 0.5,
+		"phases": 
+			[
+				{
+					"duration" : 100,
+					"moveto": [50,0],
+					"scale": 2,
+					"rotate": [90]
+				}
+			]
+	},
+	{
+		"label": "",
+		"center": [-100,-50],
+		"covar": [[1,0],[0,1000]],
+		"weight": 0.5,
+		"phases": 
+			[
+				{
+					"duration" : 100,
+					"rotate": [-90]
+				}
+			]
+	},
+		{
+		"label": "B",
+		"center": [-100,0],
+		"covar": [[1,0],[0,1000]],
+		"weight": 0.5,
+		"phases": 
+			[
+				{
+					"duration" : 100,
+					"moveto": [-50,0],
+					"rotate": [-90]
+				}
+			]
+	}
+]
