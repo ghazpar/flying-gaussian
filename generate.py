@@ -6,6 +6,7 @@ See file test.json for an example.
 
 from scipy.stats import multivariate_normal
 from Distribution import Distribution
+from DataIO import writeData
 import argparse, csv, sys, json, numpy
 
 gAbort = False
@@ -27,26 +28,6 @@ def readDistributions(iFilename):
     if gAbort: exit()
 
     return lDistribs
-
-def writeOutput(iHeader, iData, iFormat):
-    """ Write output file in specified format. """
-
-    if iFormat == 'csv':
-        iData.insert(0, [x[0] for x in iHeader['attrs']])
-    elif iFormat == 'arff':
-        print('% Flying Gaussians')
-        print('@relation', iHeader['filename'])
-        print()
-        for n, t in iHeader['attrs']:
-            print("@attribute", n, t)
-        print('\n@data')
-    else:
-        print("\aError, invalid format: ", iFormat)
-        exit()
-
-    lFile = csv.writer(sys.stdout)
-    for lRow in iData:
-        lFile.writerow(lRow)
 
 def main(iArgs):
     """Run main program."""
@@ -82,7 +63,7 @@ def main(iArgs):
     lHeader['filename'] = iArgs.filename
     lHeader['attrs'] = [('x{}'.format(x), 'numeric') for x in range(lDims)]
     lHeader['attrs'] += [('label', '{'+','.join(lClassLabels)+'}')]
-    writeOutput(lHeader, lData, iArgs.format)
+    writeData(lHeader, lData, iArgs.format)
 
 if __name__ == "__main__":
 

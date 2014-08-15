@@ -5,48 +5,13 @@ Classify the data generates by the main generate script.
 
 from scipy.stats import multivariate_normal
 from Distribution import Distribution
-import argparse, csv, sys, json, numpy
+from DataIO import readData, writeData
+import argparse, json, numpy
 
 from math import sqrt, cos, sin, pi, atan2
 
 # Global constant
 gAbort = False
-
-def readData(iFilename, iFormat):
-    """
-    Read the data file.
-
-    Returns a list of tuples containing a numpy array and.
-    """
-    try:
-        if iFilename == 'stdin':
-            import sys
-            lFD = sys.stdin
-        else:
-            lFD = open(iFilename)
-    except IOError:
-        print('\aError, cannot open file : ', iFilename)
-        exit()
-
-    if iFormat == 'csv':
-        import csv
-        lFile = csv.reader(lFD)
-    elif iFormat == 'arff':
-        import arff
-        lFile = arff.Reader(lFD)
-    else: 
-        print("\aError, invalid format: ", iFormat)
-        exit()
-
-    lData = []
-    for lRow in lFile:
-        # skip header row
-        if list(lRow)[-1] == 'label': continue
-
-        # create tuple (array, label)
-        lData.append(list(lRow))
-
-    return lData
 
 def readDistributions(iFilename):
     """
@@ -69,26 +34,6 @@ def readDistributions(iFilename):
     if gAbort: exit()
 
     return lDistribs
-
-def writeOutput(iHeader, iData, iFormat):
-    """ Write output file in specified format. """
-
-    if iFormat == 'csv':
-        iData.insert(0, [x[0] for x in iHeader['attrs']])
-    elif iFormat == 'arff':
-        print('% Flying Gaussians')
-        print('@relation', iHeader['filename'])
-        print()
-        for n, t in iHeader['attrs']:
-            print("@attribute", n, t)
-        print('\n@data')
-    else:
-        print("\aError, invalid format: ", iFormat)
-        exit()
-
-    lFile = csv.writer(sys.stdout)
-    for lRow in iData:
-        lFile.writerow(lRow)
 
 def main(iArgs):
     """Run main program."""
@@ -131,7 +76,7 @@ def main(iArgs):
     lHeader['attrs'] = [('x{}'.format(x), 'numeric') for x in range(lDims)]
     lHeader['attrs'] += [('P({}|X)'.format(x), 'numeric') for x in lClassLabels]
     lHeader['attrs'] += [('label', '{'+','.join(lClassLabels)+'}')]
-    writeOutput(lHeader, lData, iArgs.format)
+    writeData(lHeader, lData, iArgs.format)
 
 if __name__ == "__main__":
 

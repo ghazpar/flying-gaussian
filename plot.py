@@ -4,6 +4,7 @@ Plot the data generates by the main generate script.
 """
 
 from Distribution import Distribution
+from DataIO import readData
 import argparse, json, numpy
 
 import matplotlib.pyplot as plt
@@ -21,42 +22,6 @@ COLORS = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
 gClassColors = {}
 
 gAbort = False
-
-def readData(iFilename, iFormat):
-    """
-    Read the CSV data file.
-
-    Returns a list of tuples containing a class label and a numpy array.
-    """
-    try:
-        if iFilename == 'stdin':
-            import sys
-            lFD = sys.stdin
-        else:
-            lFD = open(iFilename)
-    except IOError:
-        print('\aError, cannot open file : ', iFilename)
-        exit()
-
-    if iFormat == 'csv':
-        import csv
-        lFile = csv.reader(lFD)
-    elif iFormat == 'arff':
-        import arff
-        lFile = arff.Reader(lFD)
-    else: 
-        print("\aError, invalid format: ", iFormat)
-        exit()
-
-    lData = []
-    for lRow in lFile:
-        # skip header row
-        if list(lRow)[-1] == 'label': continue
-
-        # create tuple (array, label)
-        lData.append( (list(lRow)[0:-1], list(lRow)[-1]) )
-
-    return lData
 
 def readDistributions(iFilename):
     """
@@ -168,8 +133,8 @@ def main(iArgs):
         lAx1.legend(lPatches, lClassLabels)
 
         # plot distributions and samples
-        lLabels.append(lClassLabels.index(lDatum[1]))
-        lSamples.append(lDatum[0])
+        lLabels.append(lClassLabels.index(lDatum[-1]))
+        lSamples.append(lDatum[0:-1])
         plotDistributions(lDistribs, lSamples, lLabels, lAx1)
         lFig.canvas.draw()
 
