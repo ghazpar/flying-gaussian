@@ -40,8 +40,7 @@ def main(iArgs):
 
     # Print CSV header
     lDims = lDistribs[0].getDims()
-    print("#class,", 
-          ", ".join("x{}".format(i+1) for i in range(lDims)))
+    print(''.join('x{},'.format(i) for i in range(lDims)), 'label', sep='')
 
     # generate the requested samples
     for i in range(iArgs.nbsamples):
@@ -59,19 +58,22 @@ def main(iArgs):
                                           lSelDist.getCurrentCovar())
 
         # print data in CSV format
-        print("{},".format(lSelDist.getClassLabel()),
-              ", ".join("{}".format(x) for x in lSample))
+        lLabel = lSelDist.getClassLabel()
+        print(''.join('{},'.format(x) for x in lSample), 
+              '{}'.format(lLabel), sep='')
 
 if __name__ == "__main__":
 
     # parse command line
     parser = argparse.ArgumentParser(description="Generate data from a "
                                                  "mixture of non-stationary "
-                                                 "gaussian distributions")
-    parser.add_argument('filename', help="JSON file containing the mixture "
-                                          "of gaussians")
+                                                 "gaussian distributions.")
+    parser.add_argument('filename', 
+                        help="name of JSON file containing the mixture of gaussians")
     parser.add_argument('nbsamples', type=int,
-                        help="number of samples to generate")
+                        help="number of samples to output")
+    parser.add_argument('--format', dest='format', choices=['csv', 'arff'], 
+                        default='csv', help="select output format")
         
     lArgs = parser.parse_args()
 
