@@ -4,7 +4,7 @@ Plot the data generates by the main generate script.
 """
 
 from Distribution import Distribution
-import argparse, json, csv, numpy
+import argparse, json, numpy
 
 import matplotlib.pyplot as plt
 from matplotlib.colors import ColorConverter
@@ -22,26 +22,41 @@ gClassColors = {}
 
 gAbort = False
 
-def readData(iFilename):
+def readData(iFilename, iFormat):
     """
     Read the CSV data file.
 
     Returns a list of tuples containing a class label and a numpy array.
     """
     try:
-        lFile = csv.reader(open(iFilename))
+        if iFilename == 'stdin':
+            lFD = sys.stdin
+        else:
+            lFD = open(iFilename)
     except IOError:
-        print('Cannot open file : ', iFilename)
+        print('\aError, cannot open file : ', iFilename)
+        exit()
+
+    if iFormat == 'csv':
+        import csv
+        lFile = csv.reader(lDF)
+    elif iFormat == 'arff':
+        import arff
+        lFile = arff.reader(lDF)
+    else: 
+        print("\aError, invalid format: ", iFormat)
         exit()
 
     lData = []
     for lRow in lFile:
         # skip header row
-        if lRow[0] == "#class": continue
+        if lRow[-1] == 'label': continue
+        print(lRow)
 
-        # create tuple (label, array)
-        lData.append( (lRow[0], numpy.array(lRow[1:])) )
+        # create tuple (array, label)
+        lData.append( (numpy.array(lRow[0:-1]), lRow[-1]))
 
+    print(lData)
     return lData
 
 def readDistributions(iFilename):
@@ -171,15 +186,18 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Plot data generated from a "
                                                  "mixture of non-stationary "
                                                  "gaussian distributions")
-    parser.add_argument('mixture', help="JSON file containing the mixture "
-                                            "of gaussians")
-    parser.add_argument('data', help="CSV file containing the mixture "
-                                            "of gaussians")
-    parser.add_argument('--nbsamples', dest='nbsamples', type=int, default=-1,
+    parser.add_argument('filename', 
+                        help="name of JSON file containing the mixture of gaussians")
+    parser.add_argument('--data', metavar='FILE', default='stdin',
+                        help="name of input data file (default=stdin)")
+    parser.add_argument('--n', dest='nbsamples', type=int, default=-1,
                         help="number of recent samples to display on each plot")
-    parser.add_argument('--save-fig', dest='save_path', required=False, metavar='PATH', 
+    parser.add_argument('--format', dest='format', choices=['csv', 'arff'], 
+                        default='csv', help="select input/output format")
+    parser.add_argument('--save', dest='path', 
                         help='indicate where the figure should be saved')
     
     lArgs = parser.parse_args()
+    print(lArgs)
 
     main(lArgs)
