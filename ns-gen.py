@@ -75,8 +75,8 @@ if __name__ == "__main__":
                         help="name of JSON file containing the mixture of gaussians")
     parser.add_argument('nbsamples', type=int,
                         help="number of samples to output")
-    parser.add_argument('--format', dest='format', choices=['csv', 'arff'], 
-                        default='csv', help="select output format")
+    parser.add_argument('--format', dest='format', choices=['arff', 'csv'], 
+                        default='arff', help="select output format (default=arff)")
         
     lArgs = parser.parse_args()
 

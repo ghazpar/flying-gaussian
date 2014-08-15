@@ -86,8 +86,8 @@ if __name__ == "__main__":
                         help="name of JSON file containing the mixture of gaussians")
     parser.add_argument('--data',  dest='datafile', metavar='FILE', default='stdin',
                         help="name of input data file (default=stdin)")
-    parser.add_argument('--format', dest='format', choices=['csv', 'arff'], 
-                        default='csv', help="select input/output format")
+    parser.add_argument('--format', dest='format', choices=['arff', 'csv'], 
+                        default='arff', help="select input/output format (default=arff)")
     
     lArgs = parser.parse_args()
 

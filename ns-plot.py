@@ -156,8 +156,8 @@ if __name__ == "__main__":
                         help="name of input data file (default=stdin)")
     parser.add_argument('--n', dest='nbsamples', type=int, default=-1,
                         help="number of recent samples to display on each plot")
-    parser.add_argument('--format', dest='format', choices=['csv', 'arff'], 
-                        default='csv', help="select input/output format")
+    parser.add_argument('--format', dest='format', choices=['arff', 'csv'], 
+                        default='arff', help="select input/output format")
     parser.add_argument('--save', dest='path', 
                         help='indicate where the figure should be saved')
     
