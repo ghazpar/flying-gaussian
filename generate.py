@@ -6,7 +6,7 @@ See file test.json for an example.
 
 from scipy.stats import multivariate_normal
 from Distribution import Distribution
-import argparse, json, numpy
+import argparse, csv, sys, json, numpy
 
 gAbort = False
 
@@ -28,20 +28,38 @@ def readDistributions(iFilename):
 
     return lDistribs
 
+def writeOutput(iHeader, iData, iFormat):
+    """ Write output file in specified format. """
+
+    if iFormat == 'csv':
+        iData.insert(0, [x[0] for x in iHeader['attrs']])
+    elif iFormat == 'arff':
+        print('% Flying Gaussians')
+        print('@relation', iHeader['filename'])
+        print()
+        for n, t in iHeader['attrs']:
+            print("@attribute", n, t)
+        print('\n@data')
+    else:
+        print("\aError, invalid format: ", iFormat)
+        exit()
+
+    lFile = csv.writer(sys.stdout)
+    for lRow in iData:
+        lFile.writerow(lRow)
+
 def main(iArgs):
     """Run main program."""
     
     # read distributions in json file
     lDistribs = readDistributions(iArgs.filename)
+    lDims = lDistribs[0].getDims()
 
     # enumerate class labels
     lClassLabels = set(x.getClassLabel() for x in lDistribs)
     lClassLabels = sorted([x for x in lClassLabels])
 
-    # Print CSV header
-    lDims = lDistribs[0].getDims()
-    print(''.join('x{},'.format(i) for i in range(lDims)), 'label', sep='')
-
+    lData = []
     # generate the requested samples
     for i in range(iArgs.nbsamples):
 
@@ -57,10 +75,14 @@ def main(iArgs):
         lSample = multivariate_normal.rvs(lSelDist.getCurrentCenter(), 
                                           lSelDist.getCurrentCovar())
 
-        # print data in CSV format
-        lLabel = lSelDist.getClassLabel()
-        print(''.join('{},'.format(x) for x in lSample), 
-              '{}'.format(lLabel), sep='')
+        lData.append(list(lSample)+list(lSelDist.getClassLabel()))
+
+    # write output data file
+    lHeader = {}
+    lHeader['filename'] = iArgs.filename
+    lHeader['attrs'] = [('x{}'.format(x), 'numeric') for x in range(lDims)]
+    lHeader['attrs'].append( ('label', '{'+','.join(lClassLabels)+'}') )
+    writeOutput(lHeader, lData, iArgs.format)
 
 if __name__ == "__main__":
 
