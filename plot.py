@@ -30,6 +30,7 @@ def readData(iFilename, iFormat):
     """
     try:
         if iFilename == 'stdin':
+            import sys
             lFD = sys.stdin
         else:
             lFD = open(iFilename)
@@ -39,10 +40,10 @@ def readData(iFilename, iFormat):
 
     if iFormat == 'csv':
         import csv
-        lFile = csv.reader(lDF)
+        lFile = csv.reader(lFD)
     elif iFormat == 'arff':
         import arff
-        lFile = arff.reader(lDF)
+        lFile = arff.Reader(lFD)
     else: 
         print("\aError, invalid format: ", iFormat)
         exit()
@@ -50,13 +51,11 @@ def readData(iFilename, iFormat):
     lData = []
     for lRow in lFile:
         # skip header row
-        if lRow[-1] == 'label': continue
-        print(lRow)
+        if list(lRow)[-1] == 'label': continue
 
         # create tuple (array, label)
-        lData.append( (numpy.array(lRow[0:-1]), lRow[-1]))
+        lData.append( (list(lRow)[0:-1], list(lRow)[-1]) )
 
-    print(lData)
     return lData
 
 def readDistributions(iFilename):
@@ -122,8 +121,8 @@ def plotDistributions(iDistribs, iSamples, iLabels, iAx):
 def main(iArgs):
     """Run main program."""
     
-    lDistribs = readDistributions(iArgs.mixture)
-    lData = readData(iArgs.data)
+    lDistribs = readDistributions(iArgs.filename)
+    lData = readData(iArgs.datafile, iArgs.format)
     
     # Initialize figure and axis before plotting
     lFig = plt.figure(figsize=(10,10))
@@ -169,12 +168,12 @@ def main(iArgs):
         lAx1.legend(lPatches, lClassLabels)
 
         # plot distributions and samples
-        lLabels.append(lClassLabels.index(lDatum[0]))
-        lSamples.append(lDatum[1])
+        lLabels.append(lClassLabels.index(lDatum[1]))
+        lSamples.append(lDatum[0])
         plotDistributions(lDistribs, lSamples, lLabels, lAx1)
         lFig.canvas.draw()
 
-        if iArgs.save_path:
+        if iArgs.path:
             lFig.savefig(path+"/point_{}.png".format(i))
 
     plt.ioff()
@@ -188,7 +187,7 @@ if __name__ == "__main__":
                                                  "gaussian distributions")
     parser.add_argument('filename', 
                         help="name of JSON file containing the mixture of gaussians")
-    parser.add_argument('--data', metavar='FILE', default='stdin',
+    parser.add_argument('--data', dest='datafile', metavar='FILE', default='stdin',
                         help="name of input data file (default=stdin)")
     parser.add_argument('--n', dest='nbsamples', type=int, default=-1,
                         help="number of recent samples to display on each plot")
@@ -198,6 +197,5 @@ if __name__ == "__main__":
                         help='indicate where the figure should be saved')
     
     lArgs = parser.parse_args()
-    print(lArgs)
 
     main(lArgs)
