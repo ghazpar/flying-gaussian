@@ -8,8 +8,6 @@ from Distribution import Distribution
 from DataIO import readData, writeData
 import argparse, json, numpy
 
-from math import sqrt, cos, sin, pi, atan2
-
 # Global constant
 gAbort = False
 
