@@ -5,7 +5,7 @@ Classify the data generates by the main generate script.
 
 from scipy.stats import multivariate_normal
 from Distribution import Distribution
-import argparse, json, csv, sys, numpy
+import argparse, csv, sys, json, numpy
 
 from math import sqrt, cos, sin, pi, atan2
 
@@ -20,6 +20,7 @@ def readData(iFilename, iFormat):
     """
     try:
         if iFilename == 'stdin':
+            import sys
             lFD = sys.stdin
         else:
             lFD = open(iFilename)
@@ -32,7 +33,7 @@ def readData(iFilename, iFormat):
         lFile = csv.reader(lFD)
     elif iFormat == 'arff':
         import arff
-        lFile = arff.reader(lFD)
+        lFile = arff.Reader(lFD)
     else: 
         print("\aError, invalid format: ", iFormat)
         exit()
@@ -40,13 +41,11 @@ def readData(iFilename, iFormat):
     lData = []
     for lRow in lFile:
         # skip header row
-        if lRow[-1] == 'label': continue
-        print(lRow)
+        if list(lRow)[-1] == 'label': continue
 
         # create tuple (array, label)
-        lData.append( (numpy.array(lRow[0:-1]), lRow[-1]))
+        lData.append(list(lRow))
 
-    print(lData)
     return lData
 
 def readDistributions(iFilename):
@@ -71,21 +70,36 @@ def readDistributions(iFilename):
 
     return lDistribs
 
+def writeOutput(iHeader, iData, iFormat):
+    """ Write output file in specified format. """
+
+    if iFormat == 'csv':
+        iData.insert(0, [x[0] for x in iHeader['attrs']])
+    elif iFormat == 'arff':
+        print('% Flying Gaussians')
+        print('@relation', iHeader['filename'])
+        print()
+        for n, t in iHeader['attrs']:
+            print("@attribute", n, t)
+        print('\n@data')
+    else:
+        print("\aError, invalid format: ", iFormat)
+        exit()
+
+    lFile = csv.writer(sys.stdout)
+    for lRow in iData:
+        lFile.writerow(lRow)
+
 def main(iArgs):
     """Run main program."""
     
     lDistribs = readDistributions(iArgs.filename)
     lData = readData(iArgs.datafile, iArgs.format)
+    lDims = lDistribs[0].getDims()
 
     # enumerate class labels
     lClassLabels = set(x.getClassLabel() for x in lDistribs)
     lClassLabels = sorted([x for x in lClassLabels])
-
-    # Print CSV header
-    lDims = lDistribs[0].getDims()
-    print(''.join('x{},'.format(i+1) for i in range(lDims)),
-          ''.join('P({}|X),'.format(x) for x in lClassLabels),
-          'class', sep='')
 
     # classify each data sample
     for i, lDatum in enumerate(lData):
@@ -109,10 +123,15 @@ def main(iArgs):
         # compute total sum
         lTotalSum = sum(lSums.values())
 
-        # print data in CSV format
-        print(''.join('{},'.format(x) for x in lDatum[0]),
-              ''.join('{},'.format(lSums[x]/lTotalSum) for x in lClassLabels),
-              lDatum[1], sep='')
+        lData[i] = lDatum[0:-1]+[lSums[x]/lTotalSum for x in lClassLabels]+lDatum[-1:]
+
+    # write output data file
+    lHeader = {}
+    lHeader['filename'] = iArgs.filename
+    lHeader['attrs'] = [('x{}'.format(x), 'numeric') for x in range(lDims)]
+    lHeader['attrs'] += [('P({}|X)'.format(x), 'numeric') for x in lClassLabels]
+    lHeader['attrs'] += [('label', '{'+','.join(lClassLabels)+'}')]
+    writeOutput(lHeader, lData, iArgs.format)
 
 if __name__ == "__main__":
 

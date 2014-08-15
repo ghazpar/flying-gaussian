@@ -75,13 +75,13 @@ def main(iArgs):
         lSample = multivariate_normal.rvs(lSelDist.getCurrentCenter(), 
                                           lSelDist.getCurrentCovar())
 
-        lData.append(list(lSample)+list(lSelDist.getClassLabel()))
+        lData.append(list(lSample)+[lSelDist.getClassLabel()])
 
     # write output data file
     lHeader = {}
     lHeader['filename'] = iArgs.filename
     lHeader['attrs'] = [('x{}'.format(x), 'numeric') for x in range(lDims)]
-    lHeader['attrs'].append( ('label', '{'+','.join(lClassLabels)+'}') )
+    lHeader['attrs'] += [('label', '{'+','.join(lClassLabels)+'}')]
     writeOutput(lHeader, lData, iArgs.format)
 
 if __name__ == "__main__":
