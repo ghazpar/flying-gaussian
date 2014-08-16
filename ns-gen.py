@@ -5,7 +5,7 @@ See file test.json for an example.
 """
 
 from scipy.stats import multivariate_normal
-import Distribution
+import Distribution, DataIO
 import argparse, arff, numpy
 
 def main(iArgs):
@@ -37,14 +37,9 @@ def main(iArgs):
 
         lData.append(list(lSample)+[lSelDist.getClassLabel()])
 
-    # write output arff data file
-    lInfo = {}
-    lInfo['description'] = "\nFlying non-stationary gaussians, 2014\n"
-    lInfo['relation'] = iArgs.filename
-    lInfo['attributes'] = [('x{}'.format(x), 'REAL') for x in range(lDims)]
-    lInfo['attributes'] += [('class', [x for x in lClassLabels])]
-    lInfo['data'] = lData
-    print(arff.dumps(lInfo))
+    # write output arff data
+    DataIO.write(iArgs.filename, [('x{}'.format(x), 'REAL') for x in range(lDims)] +
+                 [('class', [x for x in lClassLabels])], lData)
 
 if __name__ == "__main__":
 
@@ -53,7 +48,7 @@ if __name__ == "__main__":
                                                  "mixture of non-stationary "
                                                  "gaussian distributions.")
     parser.add_argument('filename', 
-                        help="name of JSON file containing the mixture of gaussians")
+                        help="prefix of JSON filename containing the mixture of gaussians")
     parser.add_argument('nbsamples', type=int,
                         help="number of samples to output")
         
