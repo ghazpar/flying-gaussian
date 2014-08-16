@@ -1,4 +1,5 @@
 from math import cos, sin, radians
+import json
 import numpy
 
 class Distribution(object):
@@ -246,3 +247,18 @@ def createRotationMatrix(iDim, iAngles):
             lMatrix = numpy.dot(lMatrix, lTmp)
             k += 1
     return lMatrix
+
+def read(iFilename):
+    """Read the JSON description file for the mixture of gaussians."""
+    try:
+        lFile = open(iFilename+'.json')
+    except:
+        lFile = open(iFilename)
+        
+    n = 1
+    lDistribs = []
+    for lDist in json.load(lFile):
+        lDistribs.append(Distribution(lDist, n))
+        n += 1
+
+    return lDistribs
