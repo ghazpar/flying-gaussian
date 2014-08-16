@@ -37,30 +37,10 @@ def getCovEllipseParams(iCovar, iPerc=0.95):
 
     return (width, height, orient)
 
-def plotDistributions(iDistribs, iSamples, iLabels, iAx):
-    """Plot distributions ellipses and most recent samples."""
-
-    # Draw the distribution covariance ellipses
-    for lDist in iDistribs:
-        lWidth, lHeight, lOrient = getCovEllipseParams(lDist.getCurrentCovar(),
-                                                    iPerc=0.95)
-        lPatch = Ellipse(xy=lDist.getCurrentCenter(), 
-                        width=lWidth, height=lHeight, angle=lOrient, 
-                        fc=gClassColors[lDist.getClassLabel()], alpha=0.1) 
-
-        iAx.add_patch(lPatch)
-
-    # Draw the last sampled points
-    x = [lSample[0] for lSample in iSamples]
-    y = [lSample[1] for lSample in iSamples]
-    alpha = 0.9 / (len(iLabels)+1)
-    colors = [ColorConverter().to_rgba(COLORS[label], 
-            0.1+(i+1)*alpha) for i, label in enumerate(iLabels)]
-    iAx.scatter(x, y, c=colors, edgecolors='none')
-
 def main(iArgs):
     """Run main program."""
     
+    # read data
     lFile = DataIO.read(iArgs.datafile)
     if iArgs.distfile == '-':
         lDistribs = Distribution.read(lFile['relation'])
@@ -71,7 +51,7 @@ def main(iArgs):
 
     # Initialize figure and axis before plotting
     lFig = plt.figure(figsize=(10,10))
-    lAx1 = lFig.add_subplot(111)
+    lPlot = lFig.add_subplot(111)
     plt.ion()
     plt.show()
 
@@ -80,6 +60,17 @@ def main(iArgs):
         iArgs.nbsamples = len(lFile['data'])
     lSamples = deque(maxlen=iArgs.nbsamples)
     lLabels = deque(maxlen=iArgs.nbsamples)
+
+    # check plotting indexes
+    lAxes = iArgs.axes
+    if lAxes[0] == lAxes[1]:
+        print('\nError, dimension indexes are not distinct: {}\n'.format(lAxes))
+        exit()
+    for i in lAxes:
+        if i >= lDims:
+            print('\nError, invalid dimension indexes: {}'.format(lAxes))
+            print('Indexes should between 0 and {}\n'.format(lDims-1))
+            exit()
 
     # find min and max over all distributions
     lMin = numpy.ones(lDims)*float('inf')
@@ -99,27 +90,50 @@ def main(iArgs):
     for lStep, lDatum in enumerate(lFile['data']):
 
         # extract sample and class label
-        lSample = lDatum[0:2]
+        lSample = lDatum[0:lDims]
         lClass = lDatum[-1]
 
         # set time for all distributions
         for lDist in lDistribs: lDist.setTime(lStep)
 
         # set plot limits, title and legend
-        lAx1.clear()
-        lAx1.set_xlim(lMin[0],lMax[0])
-        lAx1.set_ylim(lMin[1],lMax[1])
-        lAx1.set_title("time={}".format(lStep))
+        lPlot.clear()
+        lPlot.set_xlim(lMin[lAxes[0]],lMax[lAxes[0]])
+        lPlot.set_ylim(lMin[lAxes[1]],lMax[lAxes[1]])
+        lPlot.set_title("time={}".format(lStep))
+        lPlot.set_xlabel(lFile['attributes'][lAxes[0]][0])
+        lPlot.set_ylabel(lFile['attributes'][lAxes[1]][0])
         lPatches = []
         for i in range(len(lClassLabels)):
             lPatch = Ellipse((0,0), 1, 1, fc=COLORS[i])
             lPatches.append(lPatch)
-        lAx1.legend(lPatches, lClassLabels)
+        lPlot.legend(lPatches, lClassLabels)
 
-        # plot distributions and samples
+        # add sample and label
         lLabels.append(lClassLabels.index(lClass))
         lSamples.append(lSample)
-        plotDistributions(lDistribs, lSamples, lLabels, lAx1)
+
+        # Draw the covariance ellipses
+        i = lAxes[0]; j = lAxes[1]
+        for lDist in lDistribs:
+            c = lDist.getCurrentCovar()
+            lCovar = numpy.array([ c[i,i], c[i,j], c[j,i], c[j,j] ]).reshape(2,2)
+            lWidth, lHeight, lOrient = getCovEllipseParams(lCovar,iPerc=0.95)
+            lCenter = lDist.getCurrentCenter()
+            lCenter = [ lCenter[i], lCenter[j] ]
+            lPatch = Ellipse(xy=lCenter, width=lWidth, height=lHeight, angle=lOrient, 
+                             fc=gClassColors[lDist.getClassLabel()], alpha=0.1) 
+            lPlot.add_patch(lPatch)
+
+        # Draw the last sampled points
+        x = [lSample[i] for lSample in lSamples]
+        y = [lSample[j] for lSample in lSamples]
+        alpha = 0.9 / (len(lLabels)+1)
+        colors = [ColorConverter().to_rgba(COLORS[label], 
+                0.1+(i+1)*alpha) for i, label in enumerate(lLabels)]
+        lPlot.scatter(x, y, c=colors, edgecolors='none')
+
+        # update plot
         lFig.canvas.draw()
 
         if iArgs.path:
@@ -143,8 +157,8 @@ if __name__ == "__main__":
                         help="prefix of JSON file containing the mixture of gaussians (default=relation within the data)")
     parser.add_argument('--n', dest='nbsamples', type=int, default=-1,
                         help="number of recent samples to display on each plot")
-    parser.add_argument('--axes', dest='nbsamples', type=int, default=-1,
-                        help="index of the dimensions to plot")
+    parser.add_argument('--axes', dest='axes', type=int, nargs=2, default=[0, 1],
+                        help="plot dimensions indexes")
     parser.add_argument('--save', dest='path', 
                         help='indicates where plot images should be saved')
     
