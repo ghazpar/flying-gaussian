@@ -10,12 +10,21 @@ class Distribution(object):
         for error messages."""
 
         # process class label
-        self._label = iDict.get("label")
-        if self._label == None:
+        self._class = iDict.get("class")
+        if self._class == None:
             print("\aError, distribution {} is missing a `label' attribute".format(iN))
             gAbort = True
 
-        # process distribution initial weight
+        #process distribution id
+        self._id = iDict.get("id")
+
+        # process number of dimensions
+        self._dims = iDict.get("dims")
+        if self._dims == None:
+            print("\aError, distribution {} is missing a `dims' attribute".format(iN))
+            gAbort = True
+
+        # process initial distribution weight
         lWeight = iDict.get("weight")
         if lWeight == None:
             print("\aError, distribution {} is missing a `weight' attribute".format(iN))
@@ -30,31 +39,38 @@ class Distribution(object):
         if lCenter == None:
             print("\aError, distribution {} is missing a `center' attribute".format(iN))
             gAbort = True
-        self._centers = [numpy.array(lCenter, dtype=numpy.float64)]
-        self._dims = len(lCenter)
-
-        # process distribution initial covariance
-        lCovar = iDict.get("covar")
-        if lCovar == None:
-            print("\aError, distribution {} is missing a `covar' attribute".format(iN))
+        elif len(lCenter) != self._dims:
+            print("\aError, distribution {} has an invalid `center' attribute".format(iN))
             gAbort = True
-        else:
-            lCovar = numpy.array(lCovar, dtype=numpy.float64)
-            if lCovar.shape != (self.getDims(), self.getDims()):
-                print("\aError, distribution {}".format(iN) +
-                      " has invalid covariance matrix dimensions")
-                gAbort = True
+        self._centers = [numpy.array(lCenter, dtype=numpy.float64)]
+
+        # process principal components
+        lDev = iDict.get("stddev")
+        if lDev == None:
+            print("\aError, distribution {} is missing a `stddev' attribute".format(iN))
+            gAbort = True
+        elif len(lDev) != self._dims:
+            print("\aError, distribution {} has an invalid `stddev' attribute".format(iN))
+            gAbort = True
+        
+        lCovar = numpy.identity(self._dims, dtype=numpy.float64)
+        lCovar *= numpy.diag(lDev)
         self._covars = [lCovar]
+
+        # process matrix rotation
+        lRotation = iDict.get("rotate", None)
+        if lRotation != None:
+            lRotation = numpy.radians(lRotation)
+            if len(lRotation) != self._dims*(self._dims-1)//2:
+                print("\aError, a phase in distribution {}".format(iN) +
+                      " has an invalid number of rotation angles")
+                gAbort = True
+            lMatrix = createRotationMatrix(self._dims, lRotation)
+            self._covars[-1] = numpy.dot(lMatrix.T, numpy.dot(self._covars[-1], lMatrix))
+
+        self._indices = [0]        
         self._rotations = []
         self._scales = []
-
-        # process distribution start time
-        lStart = iDict.get("start", 0)
-        if lStart < 0:
-            print("\aError, distribution {}".format(iN) +
-                  " has a negative `start' attribute")
-            gAbort = True
-        self._indices = [lStart]
 
         # process distribution phases
         for lPhase in iDict["phases"]:
@@ -113,6 +129,7 @@ class Distribution(object):
                 if len(lRotation) != x*(x-1)//2:
                     print("\aError, a phase in distribution {}".format(iN) +
                           " has an invalid number of rotation angles")
+                    gAbort = True
             self._rotations.append(lRotation)
 
             lCovar = numpy.copy(self._covars[-1])
@@ -131,7 +148,7 @@ class Distribution(object):
                     gAbort = True
 
         # check for unknown distribution attributes
-        lValidDistAttrs = ("label", "weight", "center", "covar", "start", "phases")
+        lValidDistAttrs = ("class", "id", "dims", "weight", "center", "stddev", "rotate", "phases")
         for lAttr in iDict:
             if not lAttr in lValidDistAttrs:
                 print("\aError, unknown `{}' attribute in distribution {}".format(lAttr, iN))
@@ -142,11 +159,11 @@ class Distribution(object):
 
     def getClassLabel(self):
         """Returns the distribution class label."""
-        return self._label
+        return self._class
 
     def getDims(self):
         """Returns the number of dimensions of the distribution."""
-        return len(self._centers[0])
+        return self._dims
         
     def getCurrentCenter(self):
         """Returns the current distribution mean vector."""

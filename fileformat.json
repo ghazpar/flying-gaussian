@@ -1,17 +1,19 @@
 [
 	{
-		"label":"string (mandatory)",
-		"weight":"float (mandatory)",
-		"center":"list of float (mandatory)",
-		"covar":"list of lists of floats (mandatory)",
-		"start":"integer (default=0)",
-		"phases":[
+		"class": "class label (string; mandatory)",
+		"id": "id of distribution within class (string; default=None)",
+		"dims": "number of dimensions (int; mandatory)",
+		"weight": "initial weight of distribution (float; mandatory)",
+		"center": "center point of gaussian (list of floats; mandatory)",
+		"stddev": "standard deviations for the principal components (list of floats; mandatory)",
+		"rotate": "rotation angles (list of floats; default=None)",
+		"phases": [
 			{
-				"duration":"integer (mandatory)",
-				"rotate":"list of floats (default=None)",
-				"scale":"float (default=1)",
-				"moveto|rmoveto":"tuple (default=None)",
-				"weight":"float (default=None)"
+				"duration": "integer (mandatory)",
+				"rotate": "list of floats (default=None)",
+				"scale": "float (default=1)",
+				"moveto|rmoveto": "tuple (default=None)",
+				"weight": "float (default=None)"
 			}
 		]
 	}

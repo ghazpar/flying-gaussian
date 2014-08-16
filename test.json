@@ -1,9 +1,12 @@
 [
 	{
-		"label": "A",
+		"class": "A",
+		"id": "1",
+		"dims": 2,
 		"center": [100,0],
-		"covar": [[1,0],[0,1000]],
-		"weight": 0.5,
+		"stddev": [1, 1000],
+		"rotate": [30],
+		"weight": 1.0,
 		"phases": 
 			[
 				{
@@ -15,30 +18,36 @@
 			]
 	},
 	{
-		"label": "B",
+		"class": "B",
+		"id": "1",
+		"dims": 2,
 		"center": [-100,0],
-		"covar": [[1,0],[0,1000]],
-		"weight": 0.5,
+		"stddev": [1, 1000],
+		"rotate": [-30],
+		"weight": 1.0,
 		"phases": 
 			[
 				{
 					"duration" : 100,
-					"moveto": [-50,0],
+					"rmoveto": [50,0],
 					"scale": 2,
 					"rotate": [-90]
 				}
 			]
 	},
 	{
-		"label": "C",
+		"class": "C",
+		"id": "1",
+		"dims": 2,
 		"center": [0,-50],
-		"covar": [[10,0],[0,500]],
-		"weight": 0.5,
+		"stddev": [10, 500],
+		"weight": 0.0,
 		"phases": 
 			[
 				{
 					"duration" : 100,
-					"scale": 3
+					"scale": 3,
+					"weight": 0
 				}
 			]
 	}
