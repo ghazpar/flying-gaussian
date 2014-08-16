@@ -1,4 +1,9 @@
-import arff
+try:
+    import arff
+except:
+    print("\nModule liac-arff is required to read data in arff format!")
+    print("Install using 'pip install liac-arff'\n")
+    exit()
 
 def read(iFilename):
     """ Read data in arff format. """
