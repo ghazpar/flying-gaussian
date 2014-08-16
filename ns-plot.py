@@ -3,9 +3,8 @@
 Plot the data generates by the main generate script.
 """
 
-from Distribution import Distribution
-from DataIO import readData
-import argparse, json, numpy
+import Distribution, DataIO
+import argparse, numpy
 
 import matplotlib.pyplot as plt
 from matplotlib.colors import ColorConverter
@@ -20,30 +19,6 @@ from scipy.stats import chi2
 # Global constant
 COLORS = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
 gClassColors = {}
-
-gAbort = False
-
-def readDistributions(iFilename):
-    """
-    Read the JSON description file for the mixture of gaussians.
-
-    Returns a list of distribution objects.
-    """
-    try:
-        lFile = open(iFilename)
-    except IOError:
-        print('Cannot open file : ', iFilename)
-        exit()
-        
-    n = 1
-    lDistribs = []
-    for lDist in json.load(lFile):
-        lDistribs.append(Distribution(lDist, n))
-        n += 1
-
-    if gAbort: exit()
-
-    return lDistribs
 
 def getCovEllipseParams(iCovar, iPerc=0.95):
     """
@@ -86,8 +61,11 @@ def plotDistributions(iDistribs, iSamples, iLabels, iAx):
 def main(iArgs):
     """Run main program."""
     
-    lDistribs = readDistributions(iArgs.filename)
-    lData = readData(iArgs.datafile, iArgs.format)
+    lFile = DataIO.read(iArgs.datafile)
+    if iArgs.distfile == '-':
+        lDistribs = Distribution.read(lFile['relation'])
+    else:
+        lDistribs = Distribution.read(iArgs.distfile)
     
     # Initialize figure and axis before plotting
     lFig = plt.figure(figsize=(10,10))
@@ -97,7 +75,7 @@ def main(iArgs):
 
     # allocate deques for plot samples
     if iArgs.nbsamples == -1:
-        iArgs.nbsamples = len(lData)
+        iArgs.nbsamples = len(lFile['data'])
     lSamples = deque(maxlen=iArgs.nbsamples)
     lLabels = deque(maxlen=iArgs.nbsamples)
 
@@ -116,7 +94,7 @@ def main(iArgs):
         gClassColors[lLabel] = COLORS[i]
 
     # create per time step plots
-    for i, lDatum in enumerate(lData):
+    for i, lDatum in enumerate(lFile['data']):
 
         # set time for all distributions
         for lDist in lDistribs: lDist.setTime(i)
@@ -147,19 +125,17 @@ def main(iArgs):
 if __name__ == "__main__":
 
     # parse command line
-    parser = argparse.ArgumentParser(description="Plot data generated from a "
+    parser = argparse.ArgumentParser(description="Plot the data from a "
                                                  "mixture of non-stationary "
-                                                 "gaussian distributions")
-    parser.add_argument('filename', 
-                        help="name of JSON file containing the mixture of gaussians")
-    parser.add_argument('--data', dest='datafile', metavar='FILE', default='stdin',
-                        help="name of input data file (default=stdin)")
+                                                 "gaussian distributions.")
+    parser.add_argument('--data', dest='datafile', metavar='FILE', default='-',
+                        help="name of arff data file (default=stdin)")
+    parser.add_argument('--dist', dest='distfile', metavar='FILE', default='-',
+                        help="prefix of JSON file containing the mixture of gaussians (default=relation within the data)")
     parser.add_argument('--n', dest='nbsamples', type=int, default=-1,
                         help="number of recent samples to display on each plot")
-    parser.add_argument('--format', dest='format', choices=['arff', 'csv'], 
-                        default='arff', help="select input/output format")
     parser.add_argument('--save', dest='path', 
-                        help='indicate where the figure should be saved')
+                        help='indicates where plot images should be saved')
     
     lArgs = parser.parse_args()
 
