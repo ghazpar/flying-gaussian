@@ -4,40 +4,18 @@ Classify the data generates by the main generate script.
 """
 
 from scipy.stats import multivariate_normal
-from Distribution import Distribution
-from DataIO import readData, writeData
-import argparse, json, numpy
-
-# Global constant
-gAbort = False
-
-def readDistributions(iFilename):
-    """
-    Read the JSON description file for the mixture of gaussians.
-
-    Returns a list of distribution objects.
-    """
-    try:
-        lFile = open(iFilename)
-    except IOError:
-        print('Cannot open file : ', iFilename)
-        exit()
-        
-    n = 1
-    lDistribs = []
-    for lDist in json.load(lFile):
-        lDistribs.append(Distribution(lDist, n))
-        n += 1
-
-    if gAbort: exit()
-
-    return lDistribs
+import Distribution, DataIO
+import argparse, numpy
 
 def main(iArgs):
     """Run main program."""
     
-    lDistribs = readDistributions(iArgs.filename)
-    lData = readData(iArgs.datafile, iArgs.format)
+    lFile = DataIO.read(iArgs.datafile)
+    if iArgs.distfile == '-':
+        lDistribs = Distribution.read(lFile['relation'])
+    else:
+        lDistribs = Distribution.read(iArgs.distfile)
+
     lDims = lDistribs[0].getDims()
 
     # enumerate class labels
@@ -45,10 +23,14 @@ def main(iArgs):
     lClassLabels = sorted([x for x in lClassLabels])
 
     # classify each data sample
-    for i, lDatum in enumerate(lData):
+    for lStep, lDatum in enumerate(lFile['data']):
+
+        # extract sample
+        lSample = lDatum[0:lDims]
+        lClass = lDatum[-1]
 
         # set time for all distributions
-        for lDist in lDistribs: lDist.setTime(i)
+        for lDist in lDistribs: lDist.setTime(lStep)
 
         # compute per class conditional probabilities
         lSums = {}
@@ -60,34 +42,29 @@ def main(iArgs):
 
         # compute per class sums
         for (lProb, lDist) in zip(lProbs, lDistribs):
-            lPDF = multivariate_normal.pdf(lDatum[0], lDist.getCurrentCenter(), 
-                                            lDist.getCurrentCovar())
+            lPDF = multivariate_normal.pdf(lSample, lDist.getCurrentCenter(), 
+                                           lDist.getCurrentCovar())
             lSums[lDist.getClassLabel()] += lProb * lPDF
         # compute total sum
         lTotalSum = sum(lSums.values())
 
-        lData[i] = lDatum[0:-1]+[lSums[x]/lTotalSum for x in lClassLabels]+lDatum[-1:]
+        lFile['data'][lStep] = lDatum[0:lDims]+[lSums[x]/lTotalSum for x in lClassLabels]+lDatum[-1:]
 
-    # write output data file
-    lHeader = {}
-    lHeader['filename'] = iArgs.filename
-    lHeader['attrs'] = [('x{}'.format(x), 'numeric') for x in range(lDims)]
-    lHeader['attrs'] += [('P({}|X)'.format(x), 'numeric') for x in lClassLabels]
-    lHeader['attrs'] += [('label', '{'+','.join(lClassLabels)+'}')]
-    writeData(lHeader, lData, iArgs.format)
+    # write output arff data
+    lAttrs = lFile['attributes']
+    lFile['attributes'] = lAttrs[0:lDims] + [('P({}|X)'.format(x), 'REAL') for x in lClassLabels] + lAttrs[-1:]
+    DataIO.write(lFile['relation'], lFile['attributes'], lFile['data'])
 
 if __name__ == "__main__":
 
     # parse command line
-    parser = argparse.ArgumentParser(description="Classify data generated from "
+    parser = argparse.ArgumentParser(description="Classify the data from "
                                                  "a mixture of non-stationary "
                                                  "gaussian distributions")
-    parser.add_argument('filename', 
-                        help="name of JSON file containing the mixture of gaussians")
-    parser.add_argument('--data',  dest='datafile', metavar='FILE', default='stdin',
-                        help="name of input data file (default=stdin)")
-    parser.add_argument('--format', dest='format', choices=['arff', 'csv'], 
-                        default='arff', help="select input/output format (default=arff)")
+    parser.add_argument('--data', dest='datafile', metavar='FILE', default='-',
+                        help="name of arff data file (default=stdin)")
+    parser.add_argument('--dist', dest='distfile', metavar='FILE', default='-',
+                        help="prefix of JSON file containing the mixture of gaussians (default=relation within the data)")
     
     lArgs = parser.parse_args()
 
