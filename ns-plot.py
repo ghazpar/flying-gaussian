@@ -67,6 +67,8 @@ def main(iArgs):
     else:
         lDistribs = Distribution.read(iArgs.distfile)
     
+    lDims = lDistribs[0].getDims()
+
     # Initialize figure and axis before plotting
     lFig = plt.figure(figsize=(10,10))
     lAx1 = lFig.add_subplot(111)
@@ -80,8 +82,8 @@ def main(iArgs):
     lLabels = deque(maxlen=iArgs.nbsamples)
 
     # find min and max over all distributions
-    lMin = numpy.ones(lDistribs[0].getDims())*float('inf')
-    lMax = numpy.ones(lDistribs[0].getDims())*float('-inf')
+    lMin = numpy.ones(lDims)*float('inf')
+    lMax = numpy.ones(lDims)*float('-inf')
     for lDist in lDistribs:
         for (lCenter, lCovar) in zip(lDist._centers, lDist._covars):
             numpy.minimum(lMin, lCenter - 3*numpy.sqrt(numpy.diagonal(lCovar)), lMin)
@@ -94,16 +96,20 @@ def main(iArgs):
         gClassColors[lLabel] = COLORS[i]
 
     # create per time step plots
-    for i, lDatum in enumerate(lFile['data']):
+    for lStep, lDatum in enumerate(lFile['data']):
+
+        # extract sample and class label
+        lSample = lDatum[0:2]
+        lClass = lDatum[-1]
 
         # set time for all distributions
-        for lDist in lDistribs: lDist.setTime(i)
+        for lDist in lDistribs: lDist.setTime(lStep)
 
         # set plot limits, title and legend
         lAx1.clear()
         lAx1.set_xlim(lMin[0],lMax[0])
         lAx1.set_ylim(lMin[1],lMax[1])
-        lAx1.set_title("time={}".format(i))
+        lAx1.set_title("time={}".format(lStep))
         lPatches = []
         for i in range(len(lClassLabels)):
             lPatch = Ellipse((0,0), 1, 1, fc=COLORS[i])
@@ -111,16 +117,19 @@ def main(iArgs):
         lAx1.legend(lPatches, lClassLabels)
 
         # plot distributions and samples
-        lLabels.append(lClassLabels.index(lDatum[-1]))
-        lSamples.append(lDatum[0:-1])
+        lLabels.append(lClassLabels.index(lClass))
+        lSamples.append(lSample)
         plotDistributions(lDistribs, lSamples, lLabels, lAx1)
         lFig.canvas.draw()
 
         if iArgs.path:
-            lFig.savefig(path+"/point_{}.png".format(i))
+            lFilename = iArgs.path + '/{}{}.png'.format(lFile['relation'], lStep)
+            print('Saving to ', lFilename, end='\r')
+            lFig.savefig(lFilename)
+        else:
+            print('Plotting time step', lStep, end='\r')
 
-    plt.ioff()
-    plt.show()
+    plt.ioff(); plt.show()
 
 if __name__ == "__main__":
 
@@ -134,6 +143,8 @@ if __name__ == "__main__":
                         help="prefix of JSON file containing the mixture of gaussians (default=relation within the data)")
     parser.add_argument('--n', dest='nbsamples', type=int, default=-1,
                         help="number of recent samples to display on each plot")
+    parser.add_argument('--axes', dest='nbsamples', type=int, default=-1,
+                        help="index of the dimensions to plot")
     parser.add_argument('--save', dest='path', 
                         help='indicates where plot images should be saved')
     
