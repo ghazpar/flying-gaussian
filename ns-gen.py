@@ -5,35 +5,14 @@ See file test.json for an example.
 """
 
 from scipy.stats import multivariate_normal
-from Distribution import Distribution
-from DataIO import writeData
-import argparse, csv, sys, json, numpy
-
-gAbort = False
-
-def readDistributions(iFilename):
-    """Read the JSON description file for the mixture of gaussians."""
-    try:
-        lFile = open(iFilename)
-    except IOError:
-        print('Cannot open file : ', iFilename)
-        exit()
-        
-    n = 1
-    lDistribs = []
-    for lDist in json.load(lFile):
-        lDistribs.append(Distribution(lDist, n))
-        n += 1
-
-    if gAbort: exit()
-
-    return lDistribs
+import Distribution
+import argparse, arff, numpy
 
 def main(iArgs):
     """Run main program."""
     
     # read distributions in json file
-    lDistribs = readDistributions(iArgs.filename)
+    lDistribs = Distribution.read(iArgs.filename)
     lDims = lDistribs[0].getDims()
 
     # enumerate class labels
@@ -58,12 +37,14 @@ def main(iArgs):
 
         lData.append(list(lSample)+[lSelDist.getClassLabel()])
 
-    # write output data file
-    lHeader = {}
-    lHeader['filename'] = iArgs.filename
-    lHeader['attrs'] = [('x{}'.format(x), 'numeric') for x in range(lDims)]
-    lHeader['attrs'] += [('label', '{'+','.join(lClassLabels)+'}')]
-    writeData(lHeader, lData, iArgs.format)
+    # write output arff data file
+    lInfo = {}
+    lInfo['description'] = "\nFlying non-stationary gaussians, 2014\n"
+    lInfo['relation'] = iArgs.filename
+    lInfo['attributes'] = [('x{}'.format(x), 'REAL') for x in range(lDims)]
+    lInfo['attributes'] += [('class', [x for x in lClassLabels])]
+    lInfo['data'] = lData
+    print(arff.dumps(lInfo))
 
 if __name__ == "__main__":
 
@@ -75,8 +56,6 @@ if __name__ == "__main__":
                         help="name of JSON file containing the mixture of gaussians")
     parser.add_argument('nbsamples', type=int,
                         help="number of samples to output")
-    parser.add_argument('--format', dest='format', choices=['arff', 'csv'], 
-                        default='arff', help="select output format (default=arff)")
         
     lArgs = parser.parse_args()
 
