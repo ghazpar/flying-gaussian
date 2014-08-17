@@ -4,17 +4,24 @@ Classify the data generates by the main generate script.
 """
 
 from scipy.stats import multivariate_normal
-import Distribution, DataIO
-import argparse, numpy
+import Distribution
+import argparse, arff, numpy
 
 def main(iArgs):
     """Run main program."""
     
-    lFile = DataIO.read(iArgs.datafile)
-    if iArgs.distfile == '-':
-        lDistribs = Distribution.read(lFile['relation'])
+    # read arff data
+    if iArgs.datafile == '-':
+        import sys
+        lFD = sys.stdin
     else:
-        lDistribs = Distribution.read(iArgs.distfile)
+        lFD = open(iFilename+'.arff')
+    lFile = arff.load(lFD)
+
+    # read mixture of gaussian file
+    if iArgs.path[-1] != '/':
+        iArgs.path += '/'
+    lDistribs = Distribution.read(iArgs.path+lFile['relation'])
 
     lDims = lDistribs[0].getDims()
 
@@ -53,7 +60,7 @@ def main(iArgs):
     # write output arff data
     lAttrs = lFile['attributes']
     lFile['attributes'] = lAttrs[0:lDims] + [('P({}|X)'.format(x), 'REAL') for x in lClassLabels] + lAttrs[-1:]
-    DataIO.write(lFile['relation'], lFile['attributes'], lFile['data'])
+    print(arff.dumps(lFile))
 
 if __name__ == "__main__":
 
@@ -63,8 +70,8 @@ if __name__ == "__main__":
                                                  "gaussian distributions")
     parser.add_argument('--data', dest='datafile', metavar='FILE', default='-',
                         help="name of arff data file (default=stdin)")
-    parser.add_argument('--dist', dest='distfile', metavar='FILE', default='-',
-                        help="prefix of JSON file containing the mixture of gaussians (default=relation within the data)")
+    parser.add_argument('--path', dest='path', metavar='FILE', default='.',
+                        help="path to JSON mixture of gaussians file (default=./)")
     
     lArgs = parser.parse_args()
 

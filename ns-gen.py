@@ -6,7 +6,7 @@ See file test.json for an example.
 
 from scipy.stats import multivariate_normal
 import Distribution, DataIO
-import argparse, arff, numpy
+import argparse, json, arff, numpy
 
 def main(iArgs):
     """Run main program."""
@@ -19,7 +19,16 @@ def main(iArgs):
     lClassLabels = set(x.getClassLabel() for x in lDistribs)
     lClassLabels = sorted([x for x in lClassLabels])
 
-    lData = []
+    # build arff object
+    lFile = {}
+    lFile['description'] = "\nFlying non-stationary gaussians, 2014\n"
+    for line in open(iArgs.filename+'.json'):
+        lFile['description'] += line
+    lFile['relation'] = iArgs.filename
+    lFile['attributes'] = [('x{}'.format(x), 'REAL') for x in range(lDims)]
+    lFile['attributes'] += [('class', [x for x in lClassLabels])]
+    lFile['data'] = []
+
     # generate the requested samples
     for i in range(iArgs.nbsamples):
 
@@ -35,11 +44,10 @@ def main(iArgs):
         lSample = multivariate_normal.rvs(lSelDist.getCurrentCenter(), 
                                           lSelDist.getCurrentCovar())
 
-        lData.append(list(lSample)+[lSelDist.getClassLabel()])
+        lFile['data'].append(list(lSample)+[lSelDist.getClassLabel()])
 
     # write output arff data
-    DataIO.write(iArgs.filename, [('x{}'.format(x), 'REAL') for x in range(lDims)] +
-                 [('class', [x for x in lClassLabels])], lData)
+    print(arff.dumps(lFile))
 
 if __name__ == "__main__":
 
@@ -48,7 +56,7 @@ if __name__ == "__main__":
                                                  "mixture of non-stationary "
                                                  "gaussian distributions.")
     parser.add_argument('filename', 
-                        help="prefix of JSON filename containing the mixture of gaussians")
+                        help="path to JSON mixture of gaussians file (without .json extension")
     parser.add_argument('nbsamples', type=int,
                         help="number of samples to output")
         

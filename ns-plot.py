@@ -3,7 +3,7 @@
 Plot the data generates by the main generate script.
 """
 
-import Distribution, DataIO
+import Distribution
 import argparse, numpy
 
 import matplotlib.pyplot as plt
@@ -40,12 +40,18 @@ def getCovEllipseParams(iCovar, iPerc=0.95):
 def main(iArgs):
     """Run main program."""
     
-    # read data
-    lFile = DataIO.read(iArgs.datafile)
-    if iArgs.distfile == '-':
-        lDistribs = Distribution.read(lFile['relation'])
+    # read arff data
+    if iArgs.datafile == '-':
+        import sys
+        lFD = sys.stdin
     else:
-        lDistribs = Distribution.read(iArgs.distfile)
+        lFD = open(iFilename+'.arff')
+    lFile = arff.load(lFD)
+
+    # read mixture of gaussian file
+    if iArgs.path[-1] != '/':
+        iArgs.path += '/'
+    lDistribs = Distribution.read(iArgs.path+lFile['relation'])
     
     lDims = lDistribs[0].getDims()
 
@@ -93,14 +99,26 @@ def main(iArgs):
         lSample = lDatum[0:lDims]
         lClass = lDatum[-1]
 
+        # add sample and label
+        lLabels.append(lClassLabels.index(lClass))
+        lSamples.append(lSample)
+
+        if lStep < iArgs.starttime: continue
+
         # set time for all distributions
         for lDist in lDistribs: lDist.setTime(lStep)
 
         # set plot limits, title and legend
         lPlot.clear()
-        lPlot.set_xlim(lMin[lAxes[0]],lMax[lAxes[0]])
-        lPlot.set_ylim(lMin[lAxes[1]],lMax[lAxes[1]])
-        lPlot.set_title("time={}".format(lStep))
+        lDx = lMax[lAxes[0]]-lMin[lAxes[0]]
+        lDy = lMax[lAxes[1]]-lMin[lAxes[1]]
+        if lDx > lDy:
+            lPlot.set_xlim(lMin[lAxes[0]],lMax[lAxes[0]])
+            lPlot.set_ylim(lMin[lAxes[1]]-(lDx-lDy)/2,lMax[lAxes[1]]+(lDx-lDy)/2)
+        else:
+            lPlot.set_xlim(lMin[lAxes[0]]-(lDy-lDx)/2,lMax[lAxes[0]]+(lDy-lDx)/2)
+            lPlot.set_ylim(lMin[lAxes[1]],lMax[lAxes[1]]+(lDx-lDy)/2)
+        lPlot.set_title("time step = {}".format(lStep))
         lPlot.set_xlabel(lFile['attributes'][lAxes[0]][0])
         lPlot.set_ylabel(lFile['attributes'][lAxes[1]][0])
         lPatches = []
@@ -108,10 +126,6 @@ def main(iArgs):
             lPatch = Ellipse((0,0), 1, 1, fc=COLORS[i])
             lPatches.append(lPatch)
         lPlot.legend(lPatches, lClassLabels)
-
-        # add sample and label
-        lLabels.append(lClassLabels.index(lClass))
-        lSamples.append(lSample)
 
         # Draw the covariance ellipses
         i = lAxes[0]; j = lAxes[1]
@@ -137,7 +151,9 @@ def main(iArgs):
         lFig.canvas.draw()
 
         if iArgs.path:
-            lFilename = iArgs.path + '/{}{}.png'.format(lFile['relation'], lStep)
+            if iArgs.path[-1] != '/':
+                iArgs.path += '/'
+            lFilename = iArgs.path + '/{}_{}.png'.format(lFile['relation'], lStep)
             print('Saving to ', lFilename, end='\r')
             lFig.savefig(lFilename)
         else:
@@ -153,12 +169,14 @@ if __name__ == "__main__":
                                                  "gaussian distributions.")
     parser.add_argument('--data', dest='datafile', metavar='FILE', default='-',
                         help="name of arff data file (default=stdin)")
-    parser.add_argument('--dist', dest='distfile', metavar='FILE', default='-',
-                        help="prefix of JSON file containing the mixture of gaussians (default=relation within the data)")
-    parser.add_argument('--n', dest='nbsamples', type=int, default=-1,
+    parser.add_argument('--path', dest='path', metavar='FILE', default='./',
+                        help="path to JSON mixture of gaussians file (default=./)")
+    parser.add_argument('-n', dest='nbsamples', type=int, default=-1,
                         help="number of recent samples to display on each plot")
     parser.add_argument('--axes', dest='axes', type=int, nargs=2, default=[0, 1],
                         help="plot dimensions indexes")
+    parser.add_argument('--start', dest='starttime', metavar='TIME', type=int, default=-1,
+                        help="plot only this time step")
     parser.add_argument('--save', dest='path', 
                         help='indicates where plot images should be saved')
     
