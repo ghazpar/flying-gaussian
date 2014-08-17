@@ -4,7 +4,7 @@ Plot the data generates by the main generate script.
 """
 
 import Distribution
-import argparse, numpy
+import argparse, arff, numpy
 
 import matplotlib.pyplot as plt
 from matplotlib.colors import ColorConverter
@@ -45,13 +45,13 @@ def main(iArgs):
         import sys
         lFD = sys.stdin
     else:
-        lFD = open(iFilename+'.arff')
+        lFD = open(iArgs.datafile+'.arff')
     lFile = arff.load(lFD)
 
     # read mixture of gaussian file
-    if iArgs.path[-1] != '/':
-        iArgs.path += '/'
-    lDistribs = Distribution.read(iArgs.path+lFile['relation'])
+    if iArgs.distpath[-1] != '/':
+        iArgs.distpath += '/'
+    lDistribs = Distribution.read(iArgs.distpath+lFile['relation'])
     
     lDims = lDistribs[0].getDims()
 
@@ -150,10 +150,10 @@ def main(iArgs):
         # update plot
         lFig.canvas.draw()
 
-        if iArgs.path:
-            if iArgs.path[-1] != '/':
-                iArgs.path += '/'
-            lFilename = iArgs.path + '/{}_{}.png'.format(lFile['relation'], lStep)
+        if iArgs.savepath:
+            if iArgs.savepath[-1] != '/':
+                iArgs.savepath += '/'
+            lFilename = iArgs.savepath + '/{}_{}.png'.format(lFile['relation'], lStep)
             print('Saving to ', lFilename, end='\r')
             lFig.savefig(lFilename)
         else:
@@ -169,7 +169,7 @@ if __name__ == "__main__":
                                                  "gaussian distributions.")
     parser.add_argument('--data', dest='datafile', metavar='FILE', default='-',
                         help="name of arff data file (default=stdin)")
-    parser.add_argument('--path', dest='path', metavar='FILE', default='./',
+    parser.add_argument('--path', dest='distpath', metavar='FILE', default='./',
                         help="path to JSON mixture of gaussians file (default=./)")
     parser.add_argument('-n', dest='nbsamples', type=int, default=-1,
                         help="number of recent samples to display on each plot")
@@ -177,7 +177,7 @@ if __name__ == "__main__":
                         help="plot dimensions indexes")
     parser.add_argument('--start', dest='starttime', metavar='TIME', type=int, default=-1,
                         help="plot only this time step")
-    parser.add_argument('--save', dest='path', 
+    parser.add_argument('--save', dest='savepath', 
                         help='indicates where plot images should be saved')
     
     lArgs = parser.parse_args()

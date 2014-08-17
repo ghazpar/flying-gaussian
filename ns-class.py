@@ -15,7 +15,7 @@ def main(iArgs):
         import sys
         lFD = sys.stdin
     else:
-        lFD = open(iFilename+'.arff')
+        lFD = open(iArgs.datafile+'.arff')
     lFile = arff.load(lFD)
 
     # read mixture of gaussian file

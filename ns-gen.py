@@ -5,8 +5,8 @@ See file test.json for an example.
 """
 
 from scipy.stats import multivariate_normal
-import Distribution, DataIO
-import argparse, json, arff, numpy
+import argparse, json, arff, numpy, datetime
+import Distribution
 
 def main(iArgs):
     """Run main program."""
@@ -21,7 +21,8 @@ def main(iArgs):
 
     # build arff object
     lFile = {}
-    lFile['description'] = "\nFlying non-stationary gaussians, 2014\n"
+    lFile['description'] = '\nFlying non-stationary gaussians\n'
+    lFile['description'] += str(datetime.datetime.now()) + '\n'
     for line in open(iArgs.filename+'.json'):
         lFile['description'] += line
     lFile['relation'] = iArgs.filename
