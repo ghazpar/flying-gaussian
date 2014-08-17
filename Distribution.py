@@ -67,7 +67,7 @@ class Distribution(object):
                       " has an invalid number of rotation angles\n")
                 exit()
             lMatrix = createRotationMatrix(self._dims, lRotation)
-            self._covars[-1] = numpy.dot(lMatrix.T, numpy.dot(self._covars[-1], lMatrix))
+            self._covars[-1] = numpy.dot(lMatrix, numpy.dot(self._covars[-1], lMatrix.T))
 
         self._indices = [0]        
         self._rotations = []
@@ -138,7 +138,7 @@ class Distribution(object):
                 lCovar *= lScale
             if lRotation != None:
                 lMatrix = createRotationMatrix(self.getDims(), self._rotations[-1])
-                lCovar = numpy.dot(lMatrix.T, numpy.dot(lCovar, lMatrix))
+                lCovar = numpy.dot(lMatrix, numpy.dot(lCovar, lMatrix.T))
             self._covars.append(lCovar)
 
             # check for unknown phase attributes
@@ -201,7 +201,7 @@ class Distribution(object):
             lRotation = numpy.array(self._rotations[i], dtype=numpy.float64)
             lRotation *= x
             lMatrix = createRotationMatrix(self.getDims(), lRotation)
-            lCovar = numpy.dot(lMatrix.T, numpy.dot(lCovar, lMatrix))
+            lCovar = numpy.dot(lMatrix, numpy.dot(lCovar, lMatrix.T))
 
         return lCovar
 
