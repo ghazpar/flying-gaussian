@@ -20,7 +20,7 @@ from scipy.stats import chi2
 COLORS = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
 gClassColors = {}
 
-def getCovEllipseParams(iCovar, iPerc=0.95):
+def getCovEllipseParams(iCovar, i, j, iPerc=0.95):
     """
     Return the ellipse width, height and orientation for the specified 
     covariance matrix. The *iPerc* argument specifies the percentage of 
@@ -30,10 +30,10 @@ def getCovEllipseParams(iCovar, iPerc=0.95):
     http://www.mail-archive.com/matplotlib-users@lists.sourceforge.net/msg14153.html
     """
     U, s, _ = linalg.svd(iCovar)
-    orient = atan2(U[1, 0], U[0, 0]) * 180.0/pi
-    c = chi2.isf(1 - iPerc, iCovar.shape[0])
-    width = 2.0 * sqrt(s[0] * c)
-    height = 2.0 * sqrt(s[1] * c)
+    orient = atan2(U[j, i], U[i, i]) * 180.0/pi
+    c = chi2.isf(1 - iPerc, s.size)
+    width = 2.0 * sqrt(s[i] * c)
+    height = 2.0 * sqrt(s[j] * c)
 
     return (width, height, orient)
 
@@ -125,14 +125,13 @@ def main(iArgs):
         for i in range(len(lClassLabels)):
             lPatch = Ellipse((0,0), 1, 1, fc=COLORS[i])
             lPatches.append(lPatch)
-        lPlot.legend(lPatches, lClassLabels)
+        lPlot.legend(lPatches, lClassLabels, loc=4)
 
         # Draw the covariance ellipses
         i = lAxes[0]; j = lAxes[1]
         for lDist in lDistribs:
-            c = lDist.getCurrentCovar()
-            lCovar = numpy.array([ c[i,i], c[i,j], c[j,i], c[j,j] ]).reshape(2,2)
-            lWidth, lHeight, lOrient = getCovEllipseParams(lCovar,iPerc=0.95)
+            lCovar = lDist.getCurrentCovar()
+            lWidth, lHeight, lOrient = getCovEllipseParams(lCovar, i, j, iPerc=0.95)
             lCenter = lDist.getCurrentCenter()
             lCenter = [ lCenter[i], lCenter[j] ]
             lPatch = Ellipse(xy=lCenter, width=lWidth, height=lHeight, angle=lOrient, 
@@ -153,7 +152,7 @@ def main(iArgs):
         if iArgs.savepath:
             if iArgs.savepath[-1] != '/':
                 iArgs.savepath += '/'
-            lFilename = iArgs.savepath + '/{}_{}.png'.format(lFile['relation'], lStep)
+            lFilename = iArgs.savepath + '{}_{}.png'.format(lFile['relation'], lStep)
             print('Saving to ', lFilename, end='\r')
             lFig.savefig(lFilename)
         else:
