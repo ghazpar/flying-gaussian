@@ -137,6 +137,7 @@ def main(iArgs):
         i = lAxes[0]; j = lAxes[1]
         for lDist in lDistribs:
             lCovar = lDist.getCurrentCovar()
+            if lCovar == None: continue
             lWidth, lHeight, lOrient = getCovEllipseParams(lCovar, i, j, iPerc=0.95)
             lCenter = lDist.getCurrentCenter()
             lCenter = [ lCenter[i], lCenter[j] ]
