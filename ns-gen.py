@@ -65,8 +65,11 @@ def main(iArgs):
         lSelDist = numpy.random.choice(lDistribs, p=lProbs)
 
         # draw a random sample from selected distribution
-        lSample = multivariate_normal.rvs(lSelDist.getCurrentCenter(), 
-                                          lSelDist.getCurrentCovar())
+        lCenter = lSelDist.getCurrentCenter()
+        lCovar = lSelDist.getCurrentCovar()
+        assert lSelDist.getCurrentWeight() != 0
+        assert lCenter != None and lCovar != None
+        lSample = multivariate_normal.rvs(lCenter, lCovar)
 
         # compute per class conditional probabilities
         lSums = {}
@@ -79,8 +82,15 @@ def main(iArgs):
 
         # compute per class sums
         for (lProb, lDist) in zip(lProbs, lDistribs):
-            lPDF = multivariate_normal.pdf(lSample, lDist.getCurrentCenter(), 
-                                           lDist.getCurrentCovar())
+            # skip null distributions
+            if lProb == 0: continue
+
+            # compute pdf
+            lCenter = lDist.getCurrentCenter()
+            lCovar = lDist.getCurrentCovar()
+            assert lCenter != None and lCovar != None
+            lPDF = multivariate_normal.pdf(lSample, lCenter, lCovar)
+
             lSums[lDist.getClassLabel()] += lProb * lPDF
         # compute total sum
         lTotalSum = sum(lSums.values())
