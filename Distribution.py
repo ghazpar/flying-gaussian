@@ -6,7 +6,7 @@ class Distribution(object):
     """This class incapsulates a non-stationary multivariate normal distribution. 
     The object contains a list of phases that are applied sequentially, and that 
     can modify the scale, the position and the angle of the distribution."""
-    def __init__(self, iDict, iN):
+    def __init__(self, iDict, iDims, iN):
         """ Parse dictionary *iDict*; argument *iN* is the distribution number
         for error messages."""
 
@@ -17,10 +17,10 @@ class Distribution(object):
             exit()
 
         #process distribution id
-        self._id = iDict.get("id", iN)
+        self._id = iDict.get("id", 1)
 
         # process number of dimensions
-        self._dims = iDict.get("dims")
+        self._dims = iDims
         if self._dims == None:
             print("\nError, distribution {} is missing a `dims' attribute\n".format(iN))
             exit()
@@ -254,18 +254,3 @@ def createRotationMatrix(iDim, iAngles):
             lMatrix = numpy.dot(lMatrix, lTmp)
             k += 1
     return lMatrix
-
-def read(iFilename):
-    """Read the JSON description file for the mixture of gaussians."""
-    try:
-        lFile = open(iFilename+'.json')
-    except:
-        lFile = open(iFilename)
-        
-    n = 1
-    lDistribs = []
-    for lDist in json.load(lFile):
-        lDistribs.append(Distribution(lDist, n))
-        n += 1
-
-    return lDistribs

@@ -3,8 +3,8 @@
 Plot the data generates by the main generate script.
 """
 
-import Distribution
-import argparse, arff, numpy
+from Distribution import Distribution
+import argparse, json, arff, numpy
 
 import matplotlib.pyplot as plt
 from matplotlib.colors import ColorConverter
@@ -48,16 +48,22 @@ def main(iArgs):
         lFD = open(iArgs.datafile+'.arff')
     lFile = arff.load(lFD)
 
-    # read mixture of gaussian file
-    if iArgs.distpath[-1] != '/':
-        iArgs.distpath += '/'
-    lDistribs = Distribution.read(iArgs.distpath+lFile['relation'])
-    
-    lDims = lDistribs[0].getDims()
+    # read the configuration info
+    lConf = lFile['description'][lFile['description'].find('{'):]
+    lInput = json.loads(lConf)
+
+    # parse the distributions
+    n = 1
+    lDistribs = []
+    for lDist in lInput['distributions']:
+        lDistribs.append(Distribution(lDist, lInput['dimensions'], n))
+        n += 1
 
     # Initialize figure and axis before plotting
     lFig = plt.figure(figsize=(10,10))
     lPlot = lFig.add_subplot(111)
+    lFig.subplots_adjust(left=0.07, right=0.97, top=0.96, bottom=0.07)    
+    lPlot.tick_params(axis='both', which='major', labelsize=16)
     plt.ion()
     plt.show()
 
@@ -73,14 +79,14 @@ def main(iArgs):
         print('\nError, dimension indexes are not distinct: {}\n'.format(lAxes))
         exit()
     for i in lAxes:
-        if i >= lDims:
+        if i >= lInput['dimensions']:
             print('\nError, invalid dimension indexes: {}'.format(lAxes))
-            print('Indexes should between 0 and {}\n'.format(lDims-1))
+            print('Indexes should between 0 and {}\n'.format(lInput['dimensions']-1))
             exit()
 
     # find min and max over all distributions
-    lMin = numpy.ones(lDims)*float('inf')
-    lMax = numpy.ones(lDims)*float('-inf')
+    lMin = numpy.ones(lInput['dimensions'])*float('inf')
+    lMax = numpy.ones(lInput['dimensions'])*float('-inf')
     for lDist in lDistribs:
         for (lCenter, lCovar) in zip(lDist._centers, lDist._covars):
             numpy.minimum(lMin, lCenter - 3*numpy.sqrt(numpy.diagonal(lCovar)), lMin)
@@ -96,7 +102,7 @@ def main(iArgs):
     for lStep, lDatum in enumerate(lFile['data']):
 
         # extract sample and class label
-        lSample = lDatum[0:lDims]
+        lSample = lDatum[0:lInput['dimensions']]
         lClass = lDatum[-1]
 
         # add sample and label
@@ -118,14 +124,14 @@ def main(iArgs):
         else:
             lPlot.set_xlim(lMin[lAxes[0]]-(lDy-lDx)/2,lMax[lAxes[0]]+(lDy-lDx)/2)
             lPlot.set_ylim(lMin[lAxes[1]],lMax[lAxes[1]]+(lDx-lDy)/2)
-        lPlot.set_title("time step = {}".format(lStep))
-        lPlot.set_xlabel(lFile['attributes'][lAxes[0]][0])
-        lPlot.set_ylabel(lFile['attributes'][lAxes[1]][0])
+        lPlot.set_title("time step = {}".format(lStep), fontsize=20)
+        lPlot.set_xlabel(lFile['attributes'][lAxes[0]][0], fontsize=20)
+        lPlot.set_ylabel(lFile['attributes'][lAxes[1]][0], fontsize=20)
         lPatches = []
         for i in range(len(lClassLabels)):
             lPatch = Ellipse((0,0), 1, 1, fc=COLORS[i])
             lPatches.append(lPatch)
-        lPlot.legend(lPatches, lClassLabels, loc=4)
+        lPlot.legend(lPatches, lClassLabels, loc='upper left')
 
         # Draw the covariance ellipses
         i = lAxes[0]; j = lAxes[1]

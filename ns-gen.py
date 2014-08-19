@@ -5,36 +5,59 @@ See file test.json for an example.
 """
 
 from scipy.stats import multivariate_normal
-import argparse, json, arff, numpy, datetime
-import Distribution
+import argparse, sys, json, arff, numpy, datetime, random
+from Distribution import Distribution
+
+def read(iFilename):
+    """Read the JSON description file for the mixture of gaussians."""
+
+    return lDistribs
 
 def main(iArgs):
     """Run main program."""
-    
-    # read distributions in json file
-    lDistribs = Distribution.read(iArgs.filename)
-    lDims = lDistribs[0].getDims()
+
+    # seed random generators
+    if iArgs.seed == None:
+        iArgs.seed = int(random.random()*10e15)
+    numpy.random.seed(iArgs.seed)
+   
+    # read dataset file in json format
+    try:
+        lFD = open(iArgs.filename+'.json')
+        iArgs.filename += '.json'
+    except:
+        lFD = open(iArgs.filename)
+    lInput = json.load(lFD)
+
+    # parse distributions
+    n = 1
+    lDistribs = []
+    for lDist in lInput['distributions']:
+        lDistribs.append(Distribution(lDist, lInput['dimensions'], n))
+        n += 1
 
     # enumerate class labels
     lClassLabels = set(x.getClassLabel() for x in lDistribs)
     lClassLabels = sorted([x for x in lClassLabels])
 
     # build arff object
-    lFile = {}
-    lFile['description'] = '\nFlying non-stationary gaussians\n'
-    lFile['description'] += str(datetime.datetime.now()) + '\n'
-    for line in open(iArgs.filename+'.json'):
-        lFile['description'] += line
-    lFile['relation'] = iArgs.filename
-    lFile['attributes'] = [('x{}'.format(x), 'REAL') for x in range(lDims)]
-    lFile['attributes'] += [('class', [x for x in lClassLabels])]
-    lFile['data'] = []
+    lOutput = {}
+    lOutput['description'] = 'This file was generated {}\n'.format(datetime.datetime.now())
+    lOutput['description'] += "with the 'ns-gen.py' script\n"
+    lOutput['description'] += 'using random seed: {}\n'.format(iArgs.seed)
+    lOutput['description'] += 'and configuration file:\n'
+    lOutput['description'] += ''.join(open(iArgs.filename).readlines())
+    lOutput['relation'] = lInput['filename']
+    lOutput['attributes'] = [('x{}'.format(x), 'REAL') for x in range(lInput['dimensions'])]
+    lOutput['attributes'] += [('P({}|X)'.format(x), 'REAL') for x in lClassLabels]
+    lOutput['attributes'] += [('class', [x for x in lClassLabels])]
+    lOutput['data'] = []
 
     # generate the requested samples
-    for i in range(iArgs.nbsamples):
+    for lStep in range(lInput['duration']):
 
         # set time for all distributions
-        for lDist in lDistribs: lDist.setTime(i)
+        for lDist in lDistribs: lDist.setTime(lStep)
 
         # randomly select a distribution according to weights
         lWeights = [lDist.getCurrentWeight() for lDist in lDistribs]
@@ -45,10 +68,27 @@ def main(iArgs):
         lSample = multivariate_normal.rvs(lSelDist.getCurrentCenter(), 
                                           lSelDist.getCurrentCovar())
 
-        lFile['data'].append(list(lSample)+[lSelDist.getClassLabel()])
+        # compute per class conditional probabilities
+        lSums = {}
+        # initialize sums
+        for x in lClassLabels: 
+            lSums[x] = 0
+        # compute a priori probabilities
+        lWeights = [x.getCurrentWeight() for x in lDistribs]
+        lProbs = numpy.array(lWeights) / sum(lWeights)
+
+        # compute per class sums
+        for (lProb, lDist) in zip(lProbs, lDistribs):
+            lPDF = multivariate_normal.pdf(lSample, lDist.getCurrentCenter(), 
+                                           lDist.getCurrentCovar())
+            lSums[lDist.getClassLabel()] += lProb * lPDF
+        # compute total sum
+        lTotalSum = sum(lSums.values())
+
+        lOutput['data'].append(list(lSample)+[lSums[x]/lTotalSum for x in lClassLabels]+[lSelDist.getClassLabel()])
 
     # write output arff data
-    print(arff.dumps(lFile))
+    print(arff.dumps(lOutput))
 
 if __name__ == "__main__":
 
@@ -58,8 +98,8 @@ if __name__ == "__main__":
                                                  "gaussian distributions.")
     parser.add_argument('filename', 
                         help="path to JSON mixture of gaussians file (without .json extension")
-    parser.add_argument('nbsamples', type=int,
-                        help="number of samples to output")
+    parser.add_argument('--seed', type=int, metavar='INT', default = None,
+                        help="seed for random number generators (default=None)")
         
     lArgs = parser.parse_args()
 
