@@ -62,7 +62,7 @@ def main(iArgs):
     # Initialize figure and axis before plotting
     lFig = plt.figure(figsize=(10,10))
     lPlot = lFig.add_subplot(111)
-    lFig.subplots_adjust(left=0.07, right=0.97, top=0.96, bottom=0.07)    
+    lFig.subplots_adjust(left=0.08, right=0.97, top=0.95, bottom=0.07)    
     lPlot.tick_params(axis='both', which='major', labelsize=16)
     plt.ion()
     plt.show()
@@ -124,7 +124,7 @@ def main(iArgs):
         else:
             lPlot.set_xlim(lMin[lAxes[0]]-(lDy-lDx)/2,lMax[lAxes[0]]+(lDy-lDx)/2)
             lPlot.set_ylim(lMin[lAxes[1]],lMax[lAxes[1]]+(lDx-lDy)/2)
-        lPlot.set_title("time step = {}".format(lStep), fontsize=20)
+        lPlot.set_title("{}, time = {}".format(lFile['relation'], lStep), fontsize=20)
         lPlot.set_xlabel(lFile['attributes'][lAxes[0]][0], fontsize=20)
         lPlot.set_ylabel(lFile['attributes'][lAxes[1]][0], fontsize=20)
         lPatches = []
