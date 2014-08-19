@@ -1,6 +1,9 @@
 from math import cos, sin, radians
-import json
+import json, sys
 import numpy
+
+def perr(lMess):
+    print(lMess, file=sys.stderr)
 
 class Distribution(object):
     """This class incapsulates a non-stationary multivariate normal distribution. 
@@ -13,48 +16,42 @@ class Distribution(object):
         # process class label
         self._class = iDict.get("class")
         if self._class == None:
-            print("\nError, distribution {} is missing a `class' attribute\n".format(iN))
+            perr("\nError, distribution {} is missing a `class' attribute\n".format(iN))
             exit()
 
         #process distribution id
         self._id = iDict.get("id", 1)
 
-        # process number of dimensions
-        self._dims = iDims
-        if self._dims == None:
-            print("\nError, distribution {} is missing a `dims' attribute\n".format(iN))
-            exit()
-
         # process initial distribution weight
         lWeight = iDict.get("weight")
         if lWeight == None:
-            print("\nError, distribution {} is missing a `weight' attribute\n".format(iN))
+            perr("\nError, distribution {} is missing a `weight' attribute\n".format(iN))
             exit()
         if lWeight != None and lWeight < 0:
-            print("\nError, distribution {} has a negative `weight' attribute\n".format(iN))
+            perr("\nError, distribution {} has a negative `weight' attribute\n".format(iN))
             exit()
         self._weights = [lWeight]
 
         # process ditribution initial center
         lCenter = iDict.get("center")
         if lCenter == None:
-            print("\nError, distribution {} is missing a `center' attribute\n".format(iN))
+            perr("\nError, distribution {} is missing a `center' attribute\n".format(iN))
             exit()
-        elif len(lCenter) != self._dims:
-            print("\nError, distribution {} has an invalid `center' attribute\n".format(iN))
+        elif len(lCenter) != iDims:
+            perr("\nError, distribution {} has an invalid `center' attribute\n".format(iN))
             exit()
         self._centers = [numpy.array(lCenter, dtype=numpy.float64)]
 
         # process principal components
         lDev = iDict.get("stddev")
         if lDev == None:
-            print("\nError, distribution {} is missing a `stddev' attribute\n".format(iN))
+            perr("\nError, distribution {} is missing a `stddev' attribute\n".format(iN))
             exit()
-        elif len(lDev) != self._dims:
-            print("\nError, distribution {} has an invalid `stddev' attribute\n".format(iN))
+        elif len(lDev) != iDims:
+            perr("\nError, distribution {} has an invalid `stddev' attribute\n".format(iN))
             exit()
         
-        lCovar = numpy.identity(self._dims, dtype=numpy.float64)
+        lCovar = numpy.identity(iDims, dtype=numpy.float64)
         lCovar *= numpy.diag(lDev)
         self._covars = [lCovar]
 
@@ -62,14 +59,19 @@ class Distribution(object):
         lRotation = iDict.get("rotate", None)
         if lRotation != None:
             lRotation = numpy.radians(lRotation)
-            if len(lRotation) != self._dims*(self._dims-1)//2:
-                print("\nError, a phase in distribution {}".format(iN) +
+            if len(lRotation) != iDims*(iDims-1)//2:
+                perr("\nError, a phase in distribution {}".format(iN) +
                       " has an invalid number of rotation angles\n")
                 exit()
-            lMatrix = createRotationMatrix(self._dims, lRotation)
+            lMatrix = createRotationMatrix(iDims, lRotation)
             self._covars[-1] = numpy.dot(lMatrix, numpy.dot(self._covars[-1], lMatrix.T))
 
-        self._indices = [0]        
+        # process start time
+        lStart = iDict.get('start', 0)
+        if lStart < 0:
+            perr("\nError, invalid negative start time in distribution {}".format(iN))
+            exit()
+        self._indices = [lStart]        
         self._rotations = []
         self._scales = []
 
@@ -79,11 +81,11 @@ class Distribution(object):
             # process phase duration
             lDuration = lPhase.get("duration")
             if lDuration == None:
-                print("\nError, a phase in distribution {}".format(iN) +
+                perr("\nError, a phase in distribution {}".format(iN) +
                       " is missing a `duration' attribute\n")
                 exit()
             elif lDuration < 0:
-                print("\nError, a phase in distribution {}".format(iN) +
+                perr("\nError, a phase in distribution {}".format(iN) +
                       " has a negative `duration' attribute\n")
                 exit()
             self._indices.append(self._indices[-1]+lDuration)
@@ -93,7 +95,7 @@ class Distribution(object):
             if lWeight == None:
                 self._weights.append(self._weights[-1])
             elif lWeight < 0:
-                print("\nError, a phase in distribution {}".format(iN) +
+                perr("\nError, a phase in distribution {}".format(iN) +
                       " has a negative `weight' attribute\n")
                 exit()
             else:
@@ -109,7 +111,7 @@ class Distribution(object):
                     self._centers.append(self._centers[-1]+lMoveto)
             else:
                 if lPhase.get("rmoveto"):
-                    print("\nError, a phase in distribution {}".format(i) +
+                    perr("\nError, a phase in distribution {}".format(i) +
                           "contains both a `moveto' and `rmoveto' attribute\n")
                     exit()
                 self._centers.append(lMoveto)
@@ -117,18 +119,17 @@ class Distribution(object):
             # process phase scaling
             lScale = lPhase.get("scale", None)
             if lScale != None and lScale < 0:
-                print("\nError, a phase in distribution {}".format(iN) +
+                perr("\nError, a phase in distribution {}".format(iN) +
                       " has a negative `scale' attribute\n")
                 exit()
             self._scales.append(lScale)
 
             # process phase rotation
             lRotation = lPhase.get("rotate", None)
-            x = self.getDims()
             if lRotation != None:
                 lRotation = numpy.radians(lRotation)
-                if len(lRotation) != x*(x-1)//2:
-                    print("\nError, a phase in distribution {}".format(iN) +
+                if len(lRotation) != iDims*(iDims-1)//2:
+                    perr("\nError, a phase in distribution {}".format(iN) +
                           " has an invalid number of rotation angles\n")
                     exit()
             self._rotations.append(lRotation)
@@ -137,7 +138,7 @@ class Distribution(object):
             if lScale != None:
                 lCovar *= lScale
             if lRotation != None:
-                lMatrix = createRotationMatrix(self.getDims(), self._rotations[-1])
+                lMatrix = createRotationMatrix(iDims, self._rotations[-1])
                 lCovar = numpy.dot(lMatrix, numpy.dot(lCovar, lMatrix.T))
             self._covars.append(lCovar)
 
@@ -145,18 +146,19 @@ class Distribution(object):
             lValidPhaseAttrs = ("duration", "rotate", "scale", "weight", "moveto", "rmoveto")
             for lAttr in lPhase:
                 if not lAttr in lValidPhaseAttrs:
-                    print("\nError, unknown `{}' phase attribute in distribution {}\n".format(lAttr, iN))
+                    perr("\nError, unknown `{}' phase attribute in distribution {}\n".format(lAttr, iN))
                     exit()
 
         # check for unknown distribution attributes
-        lValidDistAttrs = ("class", "id", "dims", "weight", "center", "stddev", "rotate", "phases")
+        lValidDistAttrs = ("class", "id", "weight", "center", "stddev", "rotate", "start", "phases")
         for lAttr in iDict:
             if not lAttr in lValidDistAttrs:
-                print("\nError, unknown `{}' attribute in distribution {}\n".format(lAttr, iN))
+                perr("\nError, unknown `{}' attribute in distribution {}\n".format(lAttr, iN))
                 exit()
 
         # initialize current time
         self.setTime(0)
+        self._dims = iDims
 
     def __str__(self):
         lInfo = {'class': self._class, 'id': self._id, 'dims': self._dims, 
@@ -209,7 +211,7 @@ class Distribution(object):
         """Returns the current distribution a priori probability."""
 
         if self._curPhase == None:
-            return 0
+            return 0.
         elif self._curPhase == -1:
             return self._weights[-1]
 
