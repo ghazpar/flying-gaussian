@@ -1,0 +1,15 @@
+Script ns-gen.py is for generating non-stationary mixtures of gaussians.
+The output of this script uses Weka's arff dataset format 
+(http://www.cs.waikato.ac.nz/ml/weka/). Run 'ns-gen --help' for details.
+
+Script ns-plot is for plotting the generated data. Run 'ns-plot --help'
+for details.
+
+These Python3 scripts require the installation of the following modules:
+
+1) numpy (http://www.numpy.org/);
+2) scipy (http://scipy.org/);
+3) matplotlib (http://matplotlib.org/);
+4) liac-arff (https://pypi.python.org/pypi/liac-arff).
+
+Enjoy!
