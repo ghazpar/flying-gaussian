@@ -20,7 +20,7 @@ class Distribution(object):
             exit()
 
         #process distribution id
-        self._id = iDict.get("id", 1)
+        self._id = iDict.get("id", None)
 
         # process initial distribution weight
         lWeight = iDict.get("weight")
@@ -179,7 +179,7 @@ class Distribution(object):
         """Returns the current distribution mean vector."""
         
         if self._curPhase == None:
-            return None
+            return self._centers[0]
         elif self._curPhase == -1:
             return self._centers[-1]
 
@@ -190,7 +190,7 @@ class Distribution(object):
         """Returns the current distribution covariance matrix."""
         
         if self._curPhase == None:
-            return None
+            return self._covars[0]
         elif self._curPhase == -1:
             return self._covars[-1]
 
