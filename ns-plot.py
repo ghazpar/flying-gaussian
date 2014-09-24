@@ -190,7 +190,7 @@ if __name__ == "__main__":
                         help="number of recent samples to display on each plot")
     parser.add_argument('--axes', dest='axes', type=int, nargs=2, default=[0, 1],
                         help="plot dimensions indexes")
-    parser.add_argument('--start', dest='starttime', metavar='TIME', type=int, default=-1,
+    parser.add_argument('--start', dest='starttime', metavar='TIME', type=int, default=0,
                         help="plot only this time step")
     parser.add_argument('--save', dest='savepath', 
                         help='indicates where plot images should be saved')

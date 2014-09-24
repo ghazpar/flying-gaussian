@@ -114,7 +114,7 @@ class Distribution(object):
                     perr("\nError, a phase in distribution {}".format(i) +
                           "contains both a `moveto' and `rmoveto' attribute\n")
                     exit()
-                self._centers.append(lMoveto)
+                self._centers.append(numpy.array(lMoveto, dtype=numpy.float64))
            
             # process phase scaling
             lScale = lPhase.get("scale", None)
