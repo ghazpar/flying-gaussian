@@ -8,7 +8,7 @@ import argparse, json, arff, numpy
 
 import matplotlib.pyplot as plt
 from matplotlib.colors import ColorConverter
-from matplotlib.patches import Ellipse    
+from matplotlib.patches import Ellipse, Patch   
 
 from collections import deque
 from math import sqrt, pi, atan2
@@ -140,18 +140,20 @@ def main(iArgs):
             lWidth, lHeight, lOrient = getCovEllipseParams(lCovar, i, j, iPerc=0.95)
             lCenter = lDist.getCurrentCenter()
             lCenter = [ lCenter[i], lCenter[j] ]
-            lPatch1 = Ellipse(xy=lCenter, width=lWidth, height=lHeight, angle=lOrient,
-                              fc=gClassColors[lDist.getClassLabel()], ec='none', alpha=lProbs[lD]*0.9)
-            lPlot.add_patch(lPatch1)
-            lLegendPatches.append(lPatch1)
-            if lProbs[lD] < 0.05:
-                lPatch2 = Ellipse(xy=lCenter, width=lWidth, height=lHeight, angle=lOrient,
-                                  fc='none', lw=1, ls='dotted', ec='black', alpha=1.0) 
-                lPlot.add_patch(lPatch2)
-            if lDist._id:
-                lLegendLabels.append('P({}{})\t= {:.2f}'.format(lDist._class, lDist._id, lProbs[lD]))
+            if lProbs[lD] != 0:
+                lPatch = Ellipse(xy=lCenter, width=lWidth, height=lHeight, angle=lOrient,
+                                fc=gClassColors[lDist.getClassLabel()], ec='none', alpha=0.05+lProbs[lD]*0.45)
+                lPlot.add_patch(lPatch)
+                lLegendPatches.append(lPatch)
             else:
-                lLegendLabels.append('P({})\t= {:.2f}'.format(lDist._class, lProbs[lD]))
+                lPatch = Ellipse(xy=lCenter, width=lWidth, height=lHeight, angle=lOrient,
+                                fc='none', lw=1, ls='dotted', ec='black') 
+                lPlot.add_patch(lPatch)
+                lLegendPatches.append(Patch(fc='white', lw=1, ls='dotted', ec='black'))
+            if lDist._id:
+                lLegendLabels.append('Pr({}{})\t= {:.2f}'.format(lDist._class, lDist._id, lProbs[lD]))
+            else:
+                lLegendLabels.append('Pr({})\t= {:.2f}'.format(lDist._class, lProbs[lD]))
 
         # make plot legend
         lPlot.legend(lLegendPatches, lLegendLabels, loc='upper left')
@@ -159,9 +161,9 @@ def main(iArgs):
         # Draw sampled points
         x = [lSample[i] for lSample in lSamples]
         y = [lSample[j] for lSample in lSamples]
-        step =  1 / len(lLabels)
+        n = len(lLabels)
         colors = [ColorConverter().to_rgba(COLORS[label], 
-                i*step) for i, label in enumerate(lLabels)]
+                  0.10+0.9/sqrt(n-i)) for i, label in enumerate(lLabels)]
         lPlot.scatter(x, y, c=colors, edgecolors='none')        
 
         # update plot and save to file
