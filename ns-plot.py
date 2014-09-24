@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Plot the data generates by the main generate script.
+Plot the data produced by the generate script.
 """
 
 from Distribution import Distribution
@@ -64,8 +64,7 @@ def main(iArgs):
     lPlot = lFig.add_subplot(111)
     lFig.subplots_adjust(left=0.08, right=0.97, top=0.95, bottom=0.07)    
     lPlot.tick_params(axis='both', which='major', labelsize=16)
-    plt.ion()
-    plt.show()
+    plt.show(block=False)
 
     # allocate deques for plot samples
     if iArgs.nbsamples == -1:
@@ -109,12 +108,16 @@ def main(iArgs):
         lLabels.append(lClassLabels.index(lClass))
         lSamples.append(lSample)
 
-        if lStep < iArgs.starttime: continue
+        if lStep < iArgs.starttime or (lStep-iArgs.starttime) % iArgs.step != 0: continue
 
         # set time for all distributions
         for lDist in lDistribs: lDist.setTime(lStep)
 
-        # set plot limits, title and legend
+        # determine distribution priors
+        lWeights = [lDist.getCurrentWeight() for lDist in lDistribs]
+        lProbs = numpy.array(lWeights) / sum(lWeights)
+
+        # set plot limits, labels and title
         lPlot.clear()
         lDx = lMax[lAxes[0]]-lMin[lAxes[0]]
         lDy = lMax[lAxes[1]]-lMin[lAxes[1]]
@@ -124,48 +127,54 @@ def main(iArgs):
         else:
             lPlot.set_xlim(lMin[lAxes[0]]-(lDy-lDx)/2,lMax[lAxes[0]]+(lDy-lDx)/2)
             lPlot.set_ylim(lMin[lAxes[1]],lMax[lAxes[1]]+(lDx-lDy)/2)
-        lPlot.set_title("{}, time = {}".format(lFile['relation'], lStep), fontsize=20)
         lPlot.set_xlabel(lFile['attributes'][lAxes[0]][0], fontsize=20)
         lPlot.set_ylabel(lFile['attributes'][lAxes[1]][0], fontsize=20)
-        lPatches = []
-        for i in range(len(lClassLabels)):
-            lPatch = Ellipse((0,0), 1, 1, fc=COLORS[i])
-            lPatches.append(lPatch)
-        lPlot.legend(lPatches, lClassLabels, loc='upper left')
+        lPlot.set_title("{} dataset (time={})".format(lFile['relation'], lStep), fontsize=20)
 
-        # Draw the covariance ellipses
+        # Draw covariance ellipses
         i = lAxes[0]; j = lAxes[1]
-        for lDist in lDistribs:
+        lLegendPatches = []
+        lLegendLabels = []
+        for lD, lDist in enumerate(lDistribs):
             lCovar = lDist.getCurrentCovar()
-            if lCovar == None: continue
             lWidth, lHeight, lOrient = getCovEllipseParams(lCovar, i, j, iPerc=0.95)
             lCenter = lDist.getCurrentCenter()
             lCenter = [ lCenter[i], lCenter[j] ]
-            lPatch = Ellipse(xy=lCenter, width=lWidth, height=lHeight, angle=lOrient, 
-                             fc=gClassColors[lDist.getClassLabel()], alpha=0.1) 
-            lPlot.add_patch(lPatch)
+            lPatch1 = Ellipse(xy=lCenter, width=lWidth, height=lHeight, angle=lOrient,
+                              fc=gClassColors[lDist.getClassLabel()], ec='none', alpha=lProbs[lD]*0.9)
+            lPlot.add_patch(lPatch1)
+            lLegendPatches.append(lPatch1)
+            if lProbs[lD] < 0.05:
+                lPatch2 = Ellipse(xy=lCenter, width=lWidth, height=lHeight, angle=lOrient,
+                                  fc='none', lw=1, ls='dotted', ec='black', alpha=1.0) 
+                lPlot.add_patch(lPatch2)
+            if lDist._id:
+                lLegendLabels.append('P({}{})\t= {:.2f}'.format(lDist._class, lDist._id, lProbs[lD]))
+            else:
+                lLegendLabels.append('P({})\t= {:.2f}'.format(lDist._class, lProbs[lD]))
 
-        # Draw the last sampled points
+        # make plot legend
+        lPlot.legend(lLegendPatches, lLegendLabels, loc='upper left')
+
+        # Draw sampled points
         x = [lSample[i] for lSample in lSamples]
         y = [lSample[j] for lSample in lSamples]
-        alpha = 0.9 / (len(lLabels)+1)
+        step =  1 / len(lLabels)
         colors = [ColorConverter().to_rgba(COLORS[label], 
-                0.1+(i+1)*alpha) for i, label in enumerate(lLabels)]
-        lPlot.scatter(x, y, c=colors, edgecolors='none')
+                i*step) for i, label in enumerate(lLabels)]
+        lPlot.scatter(x, y, c=colors, edgecolors='none')        
 
-        # update plot
-        lFig.canvas.draw()
-
+        # update plot and save to file
+        print('Plotting time step', lStep, end='\r')
+        plt.draw()
         if iArgs.savepath:
             if iArgs.savepath[-1] != '/':
                 iArgs.savepath += '/'
             lFilename = iArgs.savepath + '{}_{}.png'.format(lFile['relation'], lStep)
-            print('Saving to ', lFilename, end='\r')
+            print('\nSaving to', lFilename)
             lFig.savefig(lFilename)
-        else:
-            print('Plotting time step', lStep, end='\r')
-
-    plt.ioff(); plt.show()
+            
+    input('\nPress return to quit ')
 
 if __name__ == "__main__":
 
@@ -185,7 +194,9 @@ if __name__ == "__main__":
                         help="plot only this time step")
     parser.add_argument('--save', dest='savepath', 
                         help='indicates where plot images should be saved')
-    
+    parser.add_argument('--step', dest='step', type=int, default=1,
+                        help='specify the desired time step (default=1)')
+   
     lArgs = parser.parse_args()
 
     main(lArgs)
