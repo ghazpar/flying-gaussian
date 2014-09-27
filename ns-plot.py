@@ -151,9 +151,9 @@ def main(iArgs):
                 lPlot.add_patch(lPatch)
                 lLegendPatches.append(Patch(fc='white', lw=1, ls='dotted', ec='black'))
             if lDist._id:
-                lLegendLabels.append('Pr({}{})\t= {:.2f}'.format(lDist._class, lDist._id, lProbs[lD]))
+                lLegendLabels.append('Pr({}{}) = {:.2f}'.format(lDist._class, lDist._id, lProbs[lD]))
             else:
-                lLegendLabels.append('Pr({})\t= {:.2f}'.format(lDist._class, lProbs[lD]))
+                lLegendLabels.append('Pr({}) = {:.2f}'.format(lDist._class, lProbs[lD]))
 
         # make plot legend
         lPlot.legend(lLegendPatches, lLegendLabels, loc='upper left')
